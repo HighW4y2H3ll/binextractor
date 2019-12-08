@@ -14,5 +14,39 @@ _binwalk_spec.loader.exec_module(binwalk)
 
 LOGGING = "log"
 
-with binwalk.Modules(*sys.argv[1:], signature=True, quiet=True, log=LOGGING) as mod:
-    print(mod.execute())
+
+
+class CALLBACK(object):
+    def init(self, binfile, off, size):
+        print(binfile)
+        print(off)
+        print(size)
+
+class LZMA_CB(CALLBACK):
+    pass
+
+class SQUASHFS_CB(CALLBACK):
+    pass
+
+
+def dispatch_callback(desc):
+    if desc.lower().startswith("lzma compressed data"):
+        return LZMA_CB()
+    elif desc.lower().startswith("squashfs filesystem"):
+        return SQUASHFS_CB()
+
+
+def extract(binfiles, workdir):
+    with binwalk.Modules(*binfiles, signature=True, quiet=True, log=os.path.join(workdir, LOGGING)) as mod:
+        executed_mods = mod.execute()
+        assert(len(executed_mods) == 1)
+        sigmod = executed_mods[0]
+        assert(isinstance(sigmod, binwalk.modules.Signature))
+
+        for result in sigmod.results:
+            if result.valid:
+                cb = dispatch_callback(result.description)
+                cb.init(result.file.path, result.offset, result.size)
+
+if __name__ == "__main__":
+    extract(sys.argv[1:], ".")
