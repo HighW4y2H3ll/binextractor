@@ -4,9 +4,9 @@ import sys, os
 import importlib
 
 CUR_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
-BINWALK_DIR = os.path.join(CUR_DIR, 'binwalk/src/binwalk')
 
 #import binwalk
+BINWALK_DIR = os.path.join(CUR_DIR, 'binwalk/src/binwalk')
 _binwalk_init = os.path.join(BINWALK_DIR, "__init__.py")
 _binwalk_spec = importlib.util.spec_from_file_location('binwalk', _binwalk_init)
 binwalk = importlib.util.module_from_spec(_binwalk_spec)
@@ -145,8 +145,20 @@ class LZMA_CB(CALLBACK):
 
         self.index += 1
 
+
 class SQUASHFS_CB(CALLBACK):
-    pass
+    def init(self):
+        self.index = 0
+
+    # TODO: parse squashfs - https://github.com/plougher/squashfs-tools
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read(size)
+
+        with open(os.path.join(workdir, f"fs_{self.index}.squashfs"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+        self.index += 1
 
 
 import shutil
