@@ -21,22 +21,59 @@ class CALLBACK(object):
         self.binfile = binfile
         self.init() # Initialize method from derived class
 
-    def update(self, off, size):
+    def __del__(self):
+        self.cleanup()  # Dtor from derived class
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self, typ, val, tb):
+        self.cleanup()  # Dtor from derived class
+
+    def update(self, off, size, workdir):
         pass
 
     def init(self):
         pass
 
+    def cleanup(self):
+        pass
 
+
+import lzma
 class LZMA_CB(CALLBACK):
     def init(self):
-        pass
+        self.index = 0
 
-    def update(self, off, size):
-        print(self.binfile)
-        print(off)
-        print(size)
-        binwalk.core.common.BlockFile(self.binfile)
+    def _try_deflate(self, data):
+        decomp = lzma.LZMADecompressor()
+        unpacked = b""
+        stride = 0x10
+        for i in range(0, len(data), stride):
+            try:
+                buf = decomp.decompress(binwalk.core.compat.str2bytes(data[i:i+stride]))
+            except IOError as e:
+                print("truncated")
+                return None, False
+            except lzma.LZMAError as e:
+                #print(e)
+                return unpacked, False
+            unpacked += buf
+        return unpacked, True
+
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        unpacked, valid = self._try_deflate(data)
+        if not valid:
+            unpacked, valid = self._try_deflate(data[:5]+'\xff'*8+data[5:])
+
+        with open(os.path.join(workdir, f"lzma_{self.index}"), 'wb') as fd:
+            fd.write(unpacked)
+
+        self.index += 1
 
 class SQUASHFS_CB(CALLBACK):
     pass
@@ -66,7 +103,7 @@ class Extractor(object):
             for result in sigmod.results:
                 if result.valid:
                     cb = self.dispatch_callback(result.description)
-                    cb.update(result.offset, result.size)
+                    cb.update(result.offset, result.size, workdir)
 
 if __name__ == "__main__":
     for fn in sys.argv[1:]:
