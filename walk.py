@@ -20,6 +20,7 @@ import binwalk.core.magic
 class CALLBACK(object):
     def __init__(self, binfile):
         self.binfile = binfile
+        self.arch = None
         self.init() # Initialize method from derived class
 
         self.magic = binwalk.core.magic.Magic(include=['instructions'])
@@ -99,6 +100,8 @@ class CALLBACK(object):
             elif desc.startswith("aarch64 "):
                 stat['aarch64'] += 1
 
+        if max(stat.values()) == 0:
+            return None
         return max(stat, key=stat.get)
 
 
@@ -120,6 +123,8 @@ class LZMA_CB(CALLBACK):
             except lzma.LZMAError as e:
                 #print(e)
                 return unpacked, False
+            except EOFError as e:
+                return unpacked, True
             unpacked += buf
         return unpacked, True
 
@@ -129,10 +134,10 @@ class LZMA_CB(CALLBACK):
         data = fd.read()
 
         unpacked, valid = self._try_deflate(data)
-        if not valid:
+        if not valid and len(unpacked) == 0:
             unpacked, valid = self._try_deflate(data[:5]+'\xff'*8+data[5:])
 
-        arch = self.checkasm(unpacked)
+        self.arch = self.checkasm(unpacked)
         with open(os.path.join(workdir, f"lzma_{self.index}"), 'wb') as fd:
             fd.write(unpacked)
 
@@ -142,12 +147,16 @@ class SQUASHFS_CB(CALLBACK):
     pass
 
 
-
+import shutil
+import tempfile
 class Extractor(object):
-    def __init__(self, binfile):
-        self.binfiles = [binfile]
-        self.lzma_cb = LZMA_CB(binfile)
-        self.squashfs_cb = SQUASHFS_CB(binfile)
+    def __init__(self, binfile, toplevel="/data/firmware/images"):
+        self.toplevel = os.path.abspath(os.path.realpath(toplevel))
+        self.binfile = os.path.abspath(os.path.realpath(binfile))
+        self.fails = []
+
+        self.lzma_cb = LZMA_CB(self.binfile)
+        self.squashfs_cb = SQUASHFS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -155,19 +164,37 @@ class Extractor(object):
         elif desc.lower().startswith("squashfs filesystem"):
             return self.squashfs_cb
 
+        # failsafe
+        return CALLBACK(self.binfile)
+
 
     def extract(self, workdir):
-        with binwalk.Modules(*self.binfiles, signature=True, quiet=True, log=os.path.join(workdir, LOGGING)) as mod:
+        with binwalk.Modules(*[self.binfile], signature=True, quiet=True, log=os.path.join(workdir, LOGGING)) as mod:
             executed_mods = mod.execute()
             assert(len(executed_mods) == 1)
             sigmod = executed_mods[0]
             assert(isinstance(sigmod, binwalk.modules.Signature))
 
+            temp_dir = tempfile.mkdtemp('_binx')
+            assumed_archs = []
             for result in sigmod.results:
                 if result.valid:
                     cb = self.dispatch_callback(result.description)
-                    cb.update(result.offset, result.size, workdir)
+                    cb.update(result.offset, result.size, temp_dir)
+                    if cb.arch:
+                        assumed_archs.append(cb.arch)
+
+            if not assumed_archs:
+                self.fails.append(self.binfile)
+                return
+
+            arch = max(assumed_archs, key=assumed_archs.count)
+            rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
+            dest_path = os.path.abspath(os.path.join(workdir, arch, rel_path))
+            os.makedirs(dest_path, exist_ok=True)
+            for fn in os.listdir(temp_dir):
+                shutil.move(os.path.join(temp_dir, fn), dest_path)
 
 if __name__ == "__main__":
     for fn in sys.argv[1:]:
-        Extractor(fn).extract(".")
+        Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract(".")
