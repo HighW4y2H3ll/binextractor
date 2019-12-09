@@ -3,10 +3,12 @@
 import sys, os
 import importlib
 
-CUR_DIR = os.path.join(os.path.realpath(os.path.dirname(__file__)), 'binwalk/src/binwalk/__init__.py')
+CUR_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
+BINWALK_DIR = os.path.join(CUR_DIR, 'binwalk/src/binwalk')
 
 #import binwalk
-_binwalk_spec = importlib.util.spec_from_file_location('binwalk', CUR_DIR)
+_binwalk_init = os.path.join(BINWALK_DIR, "__init__.py")
+_binwalk_spec = importlib.util.spec_from_file_location('binwalk', _binwalk_init)
 binwalk = importlib.util.module_from_spec(_binwalk_spec)
 sys.modules[_binwalk_spec.name] = binwalk
 _binwalk_spec.loader.exec_module(binwalk)
@@ -24,7 +26,7 @@ class CALLBACK(object):
         self.init() # Initialize method from derived class
 
         self.magic = binwalk.core.magic.Magic(include=['instructions'])
-        codesig = os.path.join(os.path.dirname(CUR_DIR), 'magic/binarch')
+        codesig = os.path.join(BINWALK_DIR, 'magic/binarch')
         self.magic.load(codesig)
 
     def __del__(self):
