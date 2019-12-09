@@ -153,7 +153,6 @@ class Extractor(object):
     def __init__(self, binfile, toplevel="/data/firmware/images"):
         self.toplevel = os.path.abspath(os.path.realpath(toplevel))
         self.binfile = os.path.abspath(os.path.realpath(binfile))
-        self.fails = []
 
         self.lzma_cb = LZMA_CB(self.binfile)
         self.squashfs_cb = SQUASHFS_CB(self.binfile)
@@ -185,8 +184,7 @@ class Extractor(object):
                         assumed_archs.append(cb.arch)
 
             if not assumed_archs:
-                self.fails.append(self.binfile)
-                return
+                return False
 
             arch = max(assumed_archs, key=assumed_archs.count)
             rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
@@ -195,6 +193,10 @@ class Extractor(object):
             for fn in os.listdir(temp_dir):
                 shutil.move(os.path.join(temp_dir, fn), dest_path)
 
+            return True
+
 if __name__ == "__main__":
+    failed = []
     for fn in sys.argv[1:]:
-        Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract(".")
+        if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
+            failed.append(fn)
