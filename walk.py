@@ -15,11 +15,16 @@ _binwalk_spec.loader.exec_module(binwalk)
 LOGGING = "log"
 
 
+import binwalk.core.magic
 
 class CALLBACK(object):
     def __init__(self, binfile):
         self.binfile = binfile
         self.init() # Initialize method from derived class
+
+        self.magic = binwalk.core.magic.Magic(include=['instructions'])
+        codesig = os.path.join(os.path.dirname(CUR_DIR), 'magic/binarch')
+        self.magic.load(codesig)
 
     def __del__(self):
         self.cleanup()  # Dtor from derived class
@@ -38,6 +43,63 @@ class CALLBACK(object):
 
     def cleanup(self):
         pass
+
+    def checkasm(self, code):
+        self.magic.reset()
+        stat = {
+                'mipsel':   0,
+                'mips'  :   0,
+                'mips16e':  0,
+                'mipsel16e':    0,
+                'powerpcbe':    0,
+                'powerpcle':    0,
+                'armeb' :   0,
+                'arm'   :   0,
+                'ubicom32': 0,
+                'avr8'  :   0,
+                'avr32' :   0,
+                'sparc' :   0,
+                'x86'   :   0,
+                'coldfire': 0,
+                'superh':   0,
+                'aarch64':  0,
+                }
+        for r in self.magic.scan(binwalk.core.compat.bytes2str(code)):
+            desc = r.description.lower()
+            if desc.startswith("mipsel "):
+                stat['mipsel'] += 1
+            elif desc.startswith("mips "):
+                stat['mips'] += 1
+            elif desc.startswith("mips16e "):
+                stat['mips16e'] += 1
+            elif desc.startswith("mipsel16e "):
+                stat['mipsel16e'] += 1
+            elif desc.startswith("powerpc big endian"):
+                stat['powerpcbe'] += 1
+            elif desc.startswith("powerpc little endian"):
+                stat['powerpcle'] += 1
+            elif desc.startswith("armeb "):
+                stat['armeb'] += 1
+            elif desc.startswith("arm "):
+                stat['arm'] += 1
+            elif desc.startswith("ubicom32 "):
+                stat['ubicom32'] += 1
+            elif desc.startswith("avr8 "):
+                stat['avr8'] += 1
+            elif desc.startswith("avr32 "):
+                stat['avr32'] += 1
+            elif desc.startswith("sparc "):
+                stat['sparc'] += 1
+            elif desc.startswith("intel x86"):
+                stat['x86'] += 1
+            elif desc.startswith("motorola coldfire"):
+                stat['coldfire'] += 1
+            elif desc.startswith("superh "):
+                stat['superh'] += 1
+            elif desc.startswith("aarch64 "):
+                stat['aarch64'] += 1
+
+        return max(stat, key=stat.get)
 
 
 import lzma
@@ -70,6 +132,7 @@ class LZMA_CB(CALLBACK):
         if not valid:
             unpacked, valid = self._try_deflate(data[:5]+'\xff'*8+data[5:])
 
+        arch = self.checkasm(unpacked)
         with open(os.path.join(workdir, f"lzma_{self.index}"), 'wb') as fd:
             fd.write(unpacked)
 
