@@ -190,7 +190,7 @@ class ZLIB_CB(CALLBACK):
             fd.write(unpacked)
 
         Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, append_extra_dir=False)
-        d = os.listdir(workdir)
+        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
         if not d:
             return
 
@@ -244,13 +244,13 @@ class Extractor(object):
 
 
     def extract(self, workdir, append_extra_dir=True):
-        with binwalk.Modules(*[self.binfile], signature=True, quiet=True, log=os.path.join(workdir, LOGGING)) as mod:
+        temp_dir = tempfile.mkdtemp('_binx')
+        with binwalk.Modules(*[self.binfile], signature=True, quiet=True, log=os.path.join(temp_dir, LOGGING)) as mod:
             executed_mods = mod.execute()
             assert(len(executed_mods) == 1)
             sigmod = executed_mods[0]
             assert(isinstance(sigmod, binwalk.modules.Signature))
 
-            temp_dir = tempfile.mkdtemp('_binx')
             assumed_archs = []
             for result in sigmod.results:
                 if result.valid:
@@ -260,7 +260,6 @@ class Extractor(object):
                         assumed_archs.append(cb.arch)
 
         if not assumed_archs:
-            os.remove(os.path.join(workdir, LOGGING))
             return False
 
         arch = max(assumed_archs, key=assumed_archs.count)
@@ -271,7 +270,6 @@ class Extractor(object):
         os.makedirs(dest_path, exist_ok=True)
         for fn in os.listdir(temp_dir):
             safe_filemove(os.path.join(temp_dir, fn), os.path.join(dest_path, fn))
-        safe_filemove(os.path.join(workdir, LOGGING), os.path.join(dest_path, LOGGING))
 
         return True
 
