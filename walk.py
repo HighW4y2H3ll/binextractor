@@ -17,6 +17,14 @@ _binwalk_spec.loader.exec_module(binwalk)
 LOGGING = "log"
 
 
+import shutil
+def safe_filemove(src, dst):
+    while os.path.exists(dst):
+        dst += "_"
+    shutil.move(src, dst)
+
+
+
 import binwalk.core.magic
 
 class CALLBACK(object):
@@ -160,8 +168,50 @@ class SQUASHFS_CB(CALLBACK):
             fd.write(binwalk.core.compat.str2bytes(data))
         self.index += 1
 
+class ZIP_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        pass
 
-import shutil
+    def reset(self):
+        pass
+
+import zlib
+import tempfile
+class ZLIB_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+        fd.close()
+
+        unpacked = zlib.decompress(binwalk.core.compat.str2bytes(data))
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(unpacked)
+
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, append_extra_dir=False)
+        d = os.listdir(workdir)
+        if not d:
+            return
+
+        self.arch = d[0]
+        for f in os.listdir(os.path.join(workdir, self.arch)):
+            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
+        os.rmdir(os.path.join(workdir, self.arch))
+
+
+class VXWORKS_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        self.arch = self.checkasm(data)
+
+        with open(os.path.join(workdir, "vxworks"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+
 import tempfile
 class Extractor(object):
     def __init__(self, binfile, toplevel="/data/firmware/images"):
@@ -170,18 +220,30 @@ class Extractor(object):
 
         self.lzma_cb = LZMA_CB(self.binfile)
         self.squashfs_cb = SQUASHFS_CB(self.binfile)
+        self.zip_cb = ZIP_CB(self.binfile)
+        self.zlib_cb = ZLIB_CB(self.binfile)
+        self.vxworks_cb = VXWORKS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
             return self.lzma_cb
         elif desc.lower().startswith("squashfs filesystem"):
             return self.squashfs_cb
+        elif desc.lower().startswith("zip archive data"):
+            return self.zip_cb
+        elif desc.lower().startswith("end of zip archive"):
+            self.zip_cb.reset()
+            # fall through
+        elif desc.lower().startswith("zlib compressed data"):
+            return self.zlib_cb
+        elif desc.lower().startswith("vxworks "):
+            return self.vxworks_cb
 
         # failsafe
         return CALLBACK(self.binfile)
 
 
-    def extract(self, workdir):
+    def extract(self, workdir, append_extra_dir=True):
         with binwalk.Modules(*[self.binfile], signature=True, quiet=True, log=os.path.join(workdir, LOGGING)) as mod:
             executed_mods = mod.execute()
             assert(len(executed_mods) == 1)
@@ -197,20 +259,25 @@ class Extractor(object):
                     if cb.arch:
                         assumed_archs.append(cb.arch)
 
-            if not assumed_archs:
-                return False
+        if not assumed_archs:
+            os.remove(os.path.join(workdir, LOGGING))
+            return False
 
-            arch = max(assumed_archs, key=assumed_archs.count)
-            rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
-            dest_path = os.path.abspath(os.path.join(workdir, arch, rel_path))
-            os.makedirs(dest_path, exist_ok=True)
-            for fn in os.listdir(temp_dir):
-                shutil.move(os.path.join(temp_dir, fn), dest_path)
+        arch = max(assumed_archs, key=assumed_archs.count)
+        rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
+        dest_path = os.path.abspath(os.path.join(workdir, arch, rel_path))
+        if append_extra_dir:
+            dest_path = os.path.join(dest_path, os.path.basename(self.binfile))
+        os.makedirs(dest_path, exist_ok=True)
+        for fn in os.listdir(temp_dir):
+            safe_filemove(os.path.join(temp_dir, fn), os.path.join(dest_path, fn))
+        safe_filemove(os.path.join(workdir, LOGGING), os.path.join(dest_path, LOGGING))
 
-            return True
+        return True
 
 if __name__ == "__main__":
     failed = []
     for fn in sys.argv[1:]:
-        if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
+        #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
+        if not Extractor(fn).extract("."):
             failed.append(fn)
