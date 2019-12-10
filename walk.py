@@ -245,6 +245,13 @@ class VXWORKS_CB(CALLBACK):
         with open(os.path.join(workdir, "vxworks"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
+class HTML_CB(CALLBACK):
+    def init(self):
+        self.counter = 0
+
+    def update(self, off, size, workdir):
+        self.counter += 1
+
 
 import tempfile
 class Extractor(object):
@@ -257,6 +264,7 @@ class Extractor(object):
         self.zip_cb = ZIP_CB(self.binfile)
         self.zlib_cb = ZLIB_CB(self.binfile)
         self.vxworks_cb = VXWORKS_CB(self.binfile)
+        self.html_cb = HTML_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -272,6 +280,8 @@ class Extractor(object):
             return self.zlib_cb
         elif desc.lower().startswith("vxworks "):
             return self.vxworks_cb
+        elif desc.lower().startswith("html document"):
+            return self.html_cb
 
         # failsafe
         return CALLBACK(self.binfile)
@@ -294,7 +304,13 @@ class Extractor(object):
                         assumed_archs.append(cb.arch)
 
         if not assumed_archs:
-            return False
+            # special case, if we seen a lot html header/footer, that should be the firmware
+            if self.html_cb.counter > len(sigmod.results)/2:
+                with open(self.binfile, 'rb') as fd:
+                    assumed_archs.append(
+                            CALLBACK(self.binfile).checkasm(fd.read()))
+            if not assumed_archs:
+                return False
 
         arch = max(assumed_archs, key=assumed_archs.count)
         rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
@@ -310,7 +326,13 @@ class Extractor(object):
 if __name__ == "__main__":
     failed = []
     for fn in sys.argv[1:]:
-        #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
-        if not Extractor(fn).extract("."):
+        try:
+            #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
+            if not Extractor(fn).extract("."):
+                failed.append(fn)
+        except:
             failed.append(fn)
-    print(failed)
+
+    with open("failed", 'a') as fd:
+        fd.write('\n'.join(failed))
+
