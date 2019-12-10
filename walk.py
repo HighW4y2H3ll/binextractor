@@ -23,6 +23,8 @@ def safe_filemove(src, dst):
         dst += "_"
     shutil.move(src, dst)
 
+def path2name(pstr):
+    return pstr.replace('/', '_')
 
 
 import binwalk.core.magic
@@ -168,12 +170,44 @@ class SQUASHFS_CB(CALLBACK):
             fd.write(binwalk.core.compat.str2bytes(data))
         self.index += 1
 
+import io
+import zipfile
+import tempfile
 class ZIP_CB(CALLBACK):
+    def init(self):
+        self.seen_header = False
+
     def update(self, off, size, workdir):
-        pass
+        if self.seen_header:
+            return
+        self.seen_header = True
+
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+        fd.close()
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
+            for zi in z.infolist():
+                if not zi.is_dir():
+                    newfn = path2name(zi.filename)
+                    with open(os.path.join(temp_dir, newfn), 'wb') as fd:
+                        fd.write(z.read(zi))
+
+        for f in os.listdir(temp_dir):
+            Extractor(os.path.join(temp_dir, f), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
+        if not d:
+            return
+
+        self.arch = max(d, key=d.count)
+        for f in os.listdir(os.path.join(workdir, self.arch)):
+            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
+        os.rmdir(os.path.join(workdir, self.arch))
 
     def reset(self):
-        pass
+        self.seen_header = False
 
 import zlib
 import tempfile
@@ -194,7 +228,7 @@ class ZLIB_CB(CALLBACK):
         if not d:
             return
 
-        self.arch = d[0]
+        self.arch = max(d, key=d.count)
         for f in os.listdir(os.path.join(workdir, self.arch)):
             safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
         os.rmdir(os.path.join(workdir, self.arch))
@@ -279,3 +313,4 @@ if __name__ == "__main__":
         #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
         if not Extractor(fn).extract("."):
             failed.append(fn)
+    print(failed)
