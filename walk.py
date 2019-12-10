@@ -189,7 +189,7 @@ class ZLIB_CB(CALLBACK):
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(unpacked)
 
-        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, append_extra_dir=False)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
         d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
         if not d:
             return
@@ -243,7 +243,7 @@ class Extractor(object):
         return CALLBACK(self.binfile)
 
 
-    def extract(self, workdir, append_extra_dir=True):
+    def extract(self, workdir, extra_file_dir=True):
         temp_dir = tempfile.mkdtemp('_binx')
         with binwalk.Modules(*[self.binfile], signature=True, quiet=True, log=os.path.join(temp_dir, LOGGING)) as mod:
             executed_mods = mod.execute()
@@ -265,7 +265,7 @@ class Extractor(object):
         arch = max(assumed_archs, key=assumed_archs.count)
         rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
         dest_path = os.path.abspath(os.path.join(workdir, arch, rel_path))
-        if append_extra_dir:
+        if extra_file_dir:
             dest_path = os.path.join(dest_path, os.path.basename(self.binfile))
         os.makedirs(dest_path, exist_ok=True)
         for fn in os.listdir(temp_dir):
