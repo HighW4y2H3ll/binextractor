@@ -265,6 +265,7 @@ class RAR_CB(CALLBACK):
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
+        # unrar : https://www.rarlab.com/rar_add.htm
         temp_workdir = tempfile.mkdtemp('_tmpx')
         subprocess.check_call(
                 ["./unrar/unrar", "x", "-y", "-p-", os.path.join(temp_dir, "tmp"), temp_workdir],
