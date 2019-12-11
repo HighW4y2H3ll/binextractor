@@ -24,7 +24,27 @@ def safe_filemove(src, dst):
     shutil.move(src, dst)
 
 def path2name(pstr):
+    if pstr[0] == '.':
+        pstr = pstr[1:]
     return pstr.replace('/', '_')
+
+def path_flatten(pstr, toplevel=None):
+    if os.path.isfile(pstr):
+        if toplevel:
+            relp = os.path.relpath(pstr, toplevel)
+            newfn = path2name(relp)
+            if newfn != pstr:
+                shutil.move(pstr, os.path.join(toplevel, newfn))
+        return
+    if not toplevel:    toplevel = pstr
+    subs = os.listdir(pstr)
+    for d in subs:
+        path_flatten(os.path.join(pstr, d), toplevel)
+    # remove all sub directories
+    subs = os.listdir(pstr)
+    for d in subs:
+        if os.path.isdir(d):
+            os.rmdir(d)
 
 
 import binwalk.core.magic
@@ -233,6 +253,36 @@ class ZLIB_CB(CALLBACK):
             safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
         os.rmdir(os.path.join(workdir, self.arch))
 
+import tempfile
+import subprocess
+class RAR_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        temp_workdir = tempfile.mkdtemp('_tmpx')
+        subprocess.check_call(
+                ["./unrar/unrar", "x", "-y", "-p-", os.path.join(temp_dir, "tmp"), temp_workdir],
+                stdout=subprocess.DEVNULL)
+
+        path_flatten(temp_workdir)
+
+        for f in os.listdir(temp_workdir):
+            Extractor(os.path.join(temp_workdir, f), toplevel=temp_workdir).extract(workdir, extra_file_dir=False)
+        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
+        if not d:
+            return
+
+        self.arch = max(d, key=d.count)
+        for f in os.listdir(os.path.join(workdir, self.arch)):
+            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
+        os.rmdir(os.path.join(workdir, self.arch))
+
 
 class VXWORKS_CB(CALLBACK):
     def update(self, off, size, workdir):
@@ -265,6 +315,7 @@ class Extractor(object):
         self.zlib_cb = ZLIB_CB(self.binfile)
         self.vxworks_cb = VXWORKS_CB(self.binfile)
         self.html_cb = HTML_CB(self.binfile)
+        self.rar_cb = RAR_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -282,6 +333,8 @@ class Extractor(object):
             return self.vxworks_cb
         elif desc.lower().startswith("html document"):
             return self.html_cb
+        elif desc.lower().startswith("rar archive"):
+            return self.rar_cb
 
         # failsafe
         return CALLBACK(self.binfile)
@@ -330,7 +383,8 @@ if __name__ == "__main__":
             #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
             if not Extractor(fn).extract("."):
                 failed.append(fn)
-        except:
+        except Exception as e:
+            print(e)
             failed.append(fn)
 
     with open("failed", 'a') as fd:
