@@ -238,7 +238,12 @@ class ZLIB_CB(CALLBACK):
         data = fd.read()
         fd.close()
 
-        unpacked = zlib.decompress(binwalk.core.compat.str2bytes(data))
+        try:
+            unpacked = zlib.decompress(binwalk.core.compat.str2bytes(data))
+        except zlib.error as e:
+            #print("invalid zlib")
+            return
+
         temp_dir = tempfile.mkdtemp('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(unpacked)
@@ -284,6 +289,36 @@ class RAR_CB(CALLBACK):
             safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
         os.rmdir(os.path.join(workdir, self.arch))
 
+import gzip
+class GZIP_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        try:
+            unpacked = gzip.decompress(binwalk.core.compat.str2bytes(data))
+        except zlib.error as e:
+            #print("invalid gzip")
+            return
+        except OSError as e:
+            #print("invalid gzip")
+            return
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(unpacked)
+
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+
+        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
+        if not d:
+            return
+
+        self.arch = max(d, key=d.count)
+        for f in os.listdir(os.path.join(workdir, self.arch)):
+            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
+        os.rmdir(os.path.join(workdir, self.arch))
 
 class VXWORKS_CB(CALLBACK):
     def update(self, off, size, workdir):
@@ -303,6 +338,14 @@ class HTML_CB(CALLBACK):
     def update(self, off, size, workdir):
         self.counter += 1
 
+class ELF_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read(0x1000)  # read first page
+
+        self.arch = self.checkasm(data)
+
 
 import tempfile
 class Extractor(object):
@@ -317,6 +360,8 @@ class Extractor(object):
         self.vxworks_cb = VXWORKS_CB(self.binfile)
         self.html_cb = HTML_CB(self.binfile)
         self.rar_cb = RAR_CB(self.binfile)
+        self.gzip_cb = GZIP_CB(self.binfile)
+        self.elf_cb = ELF_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -336,6 +381,10 @@ class Extractor(object):
             return self.html_cb
         elif desc.lower().startswith("rar archive"):
             return self.rar_cb
+        elif desc.lower().startswith("gzip compressed data"):
+            return self.gzip_cb
+        elif desc.lower().startswith("elf, "):
+            return self.elf_cb
 
         # failsafe
         return CALLBACK(self.binfile)
@@ -377,6 +426,7 @@ class Extractor(object):
 
         return True
 
+import traceback
 if __name__ == "__main__":
     failed = []
     for fn in sys.argv[1:]:
@@ -384,8 +434,8 @@ if __name__ == "__main__":
             #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
             if not Extractor(fn).extract("."):
                 failed.append(fn)
-        except Exception as e:
-            print(e)
+        except:
+            traceback.print_exception(*sys.exc_info())
             failed.append(fn)
 
     with open("failed", 'a') as fd:
