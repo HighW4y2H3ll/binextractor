@@ -558,6 +558,7 @@ if __name__ == "__main__":
                 failed.append(fn)
         except:
             traceback.print_exception(*sys.exc_info())
+            print(f"Unpack Failed: {fn}")
             failed.append(fn)
 
     with open(FAIL_LOG, 'a') as fd:
