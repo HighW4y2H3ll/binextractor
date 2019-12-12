@@ -4,6 +4,10 @@ import sys, os
 import importlib
 
 CUR_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
+WORKSPACE = os.path.join(CUR_DIR, "workspace")
+FAIL_LOG = os.path.join(WORKSPACE, f"failed-{os.getpid()}")
+
+DEBUG = False
 
 #import binwalk
 BINWALK_DIR = os.path.join(CUR_DIR, 'binwalk/src/binwalk')
@@ -76,6 +80,14 @@ def path_flatten(pstr, toplevel=None):
         if os.path.isdir(d):
             shutil.rmtree(d)
 
+def list_files(pstr):
+    res = []
+    for (root, dirs, files) in os.walk(pstr):
+        for f in files:
+            p = os.path.join(root, f)
+            if interesting_path(p):
+                res.append(p)
+    return res
 
 import binwalk.core.magic
 
@@ -108,7 +120,7 @@ class CALLBACK(object):
         pass
 
     def workspace_cleanup(self, workdir):
-        archs = [sub for sub in os.listdir(workdir) if sub != LOGGING]
+        archs = [sub for sub in os.listdir(workdir) if not sub.startswith(LOGGING)]
         if not archs:
             return
 
@@ -262,11 +274,12 @@ class ZIP_CB(CALLBACK):
                     with open(os.path.join(temp_dir, newfn), 'wb') as fd:
                         fd.write(z.read(zi))
 
-        for f in os.listdir(temp_dir):
-            Extractor(os.path.join(temp_dir, f), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        for f in list_files(temp_dir):
+            Extractor(f, toplevel=temp_dir).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
-        # shutil.rmtree(temp_dir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
     def reset(self):
         self.seen_header = False
@@ -293,7 +306,8 @@ class ZLIB_CB(CALLBACK):
         Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
-        # shutil.rmtree(temp_dir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
 import tempfile
 import subprocess
@@ -315,12 +329,13 @@ class RAR_CB(CALLBACK):
 
         path_flatten(temp_workdir)
 
-        for f in os.listdir(temp_workdir):
-            Extractor(os.path.join(temp_workdir, f), toplevel=temp_workdir).extract(workdir, extra_file_dir=False)
+        for f in list_files(temp_workdir):
+            Extractor(f, toplevel=temp_workdir).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
-        # shutil.rmtree(temp_dir)
-        # shutil.rmtree(temp_workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+            shutil.rmtree(temp_workdir)
 
 import io
 import gzip
@@ -351,7 +366,8 @@ class GZIP_CB(CALLBACK):
         Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
-        # shutil.rmtree(temp_dir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
 import bz2
 class BZIP2_CB(CALLBACK):
@@ -380,7 +396,10 @@ class TAR_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        tar = tarfile.TarFile(fileobj=io.BytesIO(binwalk.core.compat.str2bytes(data)))
+        try:
+            tar = tarfile.TarFile(fileobj=io.BytesIO(binwalk.core.compat.str2bytes(data)))
+        except tarfile.InvalidHeaderError as e:
+            return
 
         temp_dir = tempfile.mkdtemp('_tmpx')
         for m in tar.getmembers():
@@ -389,11 +408,12 @@ class TAR_CB(CALLBACK):
                 with open(os.path.join(temp_dir, path2name(m.name)), 'wb') as fd:
                     fd.write(buf.read())
 
-        for f in os.listdir(temp_dir):
-            Extractor(os.path.join(temp_dir, f), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        for f in list_files(temp_dir):
+            Extractor(f, toplevel=temp_dir).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
-        # shutil.rmtree(temp_dir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
 
 class VXWORKS_CB(CALLBACK):
@@ -404,8 +424,8 @@ class VXWORKS_CB(CALLBACK):
 
         self.arch = self.checkasm(data)
 
-        with open(os.path.join(workdir, "vxworks"), 'wb') as fd:
-            fd.write(binwalk.core.compat.str2bytes(data))
+        #with open(os.path.join(workdir, "vxworks"), 'wb') as fd:
+        #    fd.write(binwalk.core.compat.str2bytes(data))
 
 class HTML_CB(CALLBACK):
     def init(self):
@@ -431,6 +451,7 @@ class LINUXKERN_CB(CALLBACK):
         self.arch = self.checkasm(data)
 
 
+import re
 import tempfile
 class Extractor(object):
     def __init__(self, binfile, toplevel="/data/firmware/images"):
@@ -469,7 +490,12 @@ class Extractor(object):
         elif desc.lower().startswith("rar archive"):
             return self.rar_cb
         elif desc.lower().startswith("gzip compressed data"):
-            return self.gzip_cb
+            # Trim out uninterested file extensions - Wind River System
+            match = re.search("has original file name: \"(.+?)\",",desc.lower())
+            if not match or interesting_path(match.group(1)):
+                return self.gzip_cb
+            else:
+                return self.html_cb # re-use html indicator
         elif desc.lower().startswith("elf, "):
             return self.elf_cb
         elif desc.lower().startswith("bzip2 compressed data"):
@@ -499,16 +525,16 @@ class Extractor(object):
                     if cb.arch:
                         assumed_archs.append(cb.arch)
 
-        if not assumed_archs:
-            # special case, if we seen a lot html header/footer, that should be the firmware
-            if self.html_cb.counter >= len(sigmod.results)/2:
-                with open(self.binfile, 'rb') as fd:
-                    check_arch = CALLBACK(self.binfile).checkasm(fd.read())
-                if check_arch:
+        # special case, if we seen a lot html header/footer, that should be the firmware
+        if self.html_cb.counter >= len(sigmod.results)/2:
+            with open(self.binfile, 'rb') as fd:
+                check_arch = CALLBACK(self.binfile).checkasm(fd.read())
+            if check_arch:
+                for i in range(self.html_cb.counter):
                     assumed_archs.append(check_arch)
-                    shutil.copy(self.binfile, temp_dir)
-            if not assumed_archs:
-                return False
+                shutil.copy(self.binfile, temp_dir)
+        if not assumed_archs:
+            return False
 
         arch = max(assumed_archs, key=assumed_archs.count)
         rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
@@ -525,14 +551,15 @@ import traceback
 if __name__ == "__main__":
     failed = []
     for fn in sys.argv[1:]:
+        print(fn)
         try:
             #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
-            if not Extractor(fn).extract("."):
+            if not Extractor(fn).extract(WORKSPACE):
                 failed.append(fn)
         except:
             traceback.print_exception(*sys.exc_info())
             failed.append(fn)
 
-    with open("failed", 'a') as fd:
+    with open(FAIL_LOG, 'a') as fd:
         fd.write('\n'.join(failed) + '\n')
 
