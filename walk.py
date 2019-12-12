@@ -40,7 +40,7 @@ extension_blacklist = [
         '.make', '.js', '.xml', '.html', '.htm', '.css', '.svn-base',
         '.s', '.txt', '.in', '.asm', '.am', '.log', '.pl', '.png', '.jpg',
         '.gif', '.bmp', '.conf', '.texi', '.plo', '.tex', '.man', '.8',
-        '.sgml', '.diff', '.patch', '.txt',
+        '.sgml', '.diff', '.patch', '.txt', '.pdf',
         ]
 
 def interesting_path(pstr):
@@ -322,6 +322,7 @@ class RAR_CB(CALLBACK):
         # shutil.rmtree(temp_dir)
         # shutil.rmtree(temp_workdir)
 
+import io
 import gzip
 class GZIP_CB(CALLBACK):
     def update(self, off, size, workdir):
@@ -329,14 +330,19 @@ class GZIP_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        try:
-            unpacked = gzip.decompress(binwalk.core.compat.str2bytes(data))
-        except zlib.error as e:
-            #print("invalid gzip")
-            return
-        except OSError as e:
-            #print("invalid gzip")
-            return
+        unpacked = b""
+        stride = 0x10
+        gz = gzip.GzipFile(fileobj=io.BytesIO(binwalk.core.compat.str2bytes(data)))
+        for i in range(0, len(data), stride):
+            try:
+                buf = gz.read(stride)
+            except zlib.error as e:
+                #print("invalid gzip")
+                return
+            except OSError as e:
+                #print("invalid gzip")
+                break
+            unpacked += buf
 
         temp_dir = tempfile.mkdtemp('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -416,6 +422,14 @@ class ELF_CB(CALLBACK):
 
         self.arch = self.checkasm(data)
 
+class LINUXKERN_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(0)
+        data = fd.read()
+
+        self.arch = self.checkasm(data)
+
 
 import tempfile
 class Extractor(object):
@@ -434,6 +448,7 @@ class Extractor(object):
         self.elf_cb = ELF_CB(self.binfile)
         self.bzip2_cb = BZIP2_CB(self.binfile)
         self.tar_cb = TAR_CB(self.binfile)
+        self.linuxkern_cb = LINUXKERN_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -461,6 +476,8 @@ class Extractor(object):
             return self.bzip2_cb
         elif desc.lower().startswith("posix tar archive"):
             return self.tar_cb
+        elif desc.lower().startswith("linux kernel version"):
+            return self.linuxkern_cb
 
         # failsafe
         return CALLBACK(self.binfile)
