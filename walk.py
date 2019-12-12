@@ -28,8 +28,38 @@ def path2name(pstr):
         pstr = pstr[1:]
     return pstr.replace('/', '_')
 
+file_blacklist = [
+        'makefile', 'copying', 'install-sh', 'configure',
+        'configure.in', 'makefile.in', 'readme', 'changelog',
+        'install', 'todo', 'aclocal.m4', 'authors', 'faq', 'howto',
+        'thanks', 'license', 'kconfig', 'kbuild',
+        ]
+dir_blacklist = ['toolchain', 'tools']
+extension_blacklist = [
+        '.sh', '.bat', '.c', '.h', '.cpp', '.hpp', '.mak',
+        '.make', '.js', '.xml', '.html', '.htm', '.css', '.svn-base',
+        '.s', '.txt', '.in', '.asm', '.am', '.log', '.pl', '.png', '.jpg',
+        '.gif', '.bmp', '.conf', '.texi', '.plo', '.tex', '.man', '.8',
+        '.sgml', '.diff', '.patch', '.txt',
+        ]
+
+def interesting_path(pstr):
+    flag = False
+    for f in file_blacklist:
+        flag |= (pstr.lower() == f)
+        flag |= pstr.lower().endswith('/'+f)
+    for d in dir_blacklist:
+        flag |= pstr.lower().startswith(d)
+        flag |= ((d+'/') in pstr.lower())
+        flag |= (('/'+d) in pstr.lower())
+    for ext in extension_blacklist:
+        flag |= pstr.lower().endswith(ext)
+    return not flag
+
 def path_flatten(pstr, toplevel=None):
     if os.path.isfile(pstr):
+        if not interesting_path(pstr):
+            return
         if toplevel:
             relp = os.path.relpath(pstr, toplevel)
             newfn = path2name(relp)
@@ -44,7 +74,7 @@ def path_flatten(pstr, toplevel=None):
     subs = os.listdir(pstr)
     for d in subs:
         if os.path.isdir(d):
-            os.rmdir(d)
+            shutil.rmtree(d)
 
 
 import binwalk.core.magic
@@ -76,6 +106,23 @@ class CALLBACK(object):
 
     def cleanup(self):
         pass
+
+    def workspace_cleanup(self, workdir):
+        archs = [sub for sub in os.listdir(workdir) if sub != LOGGING]
+        if not archs:
+            return
+
+        self.arch = max(archs, key=lambda x:len(os.listdir(os.path.join(workdir, x))))
+
+        # clean up wrong arch/subdir
+        for d in os.listdir(workdir):
+            if os.path.isdir(os.path.join(workdir, d)) and d != self.arch:
+                shutil.rmtree(os.path.join(workdir, d))
+
+        # flatten dir
+        for f in os.listdir(os.path.join(workdir, self.arch)):
+            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
+        shutil.rmtree(os.path.join(workdir, self.arch))
 
     def checkasm(self, code):
         self.magic.reset()
@@ -210,21 +257,16 @@ class ZIP_CB(CALLBACK):
         temp_dir = tempfile.mkdtemp('_tmpx')
         with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
             for zi in z.infolist():
-                if not zi.is_dir():
+                if not zi.is_dir() and interesting_path(zi.filename):
                     newfn = path2name(zi.filename)
                     with open(os.path.join(temp_dir, newfn), 'wb') as fd:
                         fd.write(z.read(zi))
 
         for f in os.listdir(temp_dir):
             Extractor(os.path.join(temp_dir, f), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
-        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
-        if not d:
-            return
 
-        self.arch = max(d, key=d.count)
-        for f in os.listdir(os.path.join(workdir, self.arch)):
-            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
-        os.rmdir(os.path.join(workdir, self.arch))
+        self.workspace_cleanup(workdir)
+        # shutil.rmtree(temp_dir)
 
     def reset(self):
         self.seen_header = False
@@ -249,14 +291,9 @@ class ZLIB_CB(CALLBACK):
             fd.write(unpacked)
 
         Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
-        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
-        if not d:
-            return
 
-        self.arch = max(d, key=d.count)
-        for f in os.listdir(os.path.join(workdir, self.arch)):
-            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
-        os.rmdir(os.path.join(workdir, self.arch))
+        self.workspace_cleanup(workdir)
+        # shutil.rmtree(temp_dir)
 
 import tempfile
 import subprocess
@@ -280,14 +317,10 @@ class RAR_CB(CALLBACK):
 
         for f in os.listdir(temp_workdir):
             Extractor(os.path.join(temp_workdir, f), toplevel=temp_workdir).extract(workdir, extra_file_dir=False)
-        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
-        if not d:
-            return
 
-        self.arch = max(d, key=d.count)
-        for f in os.listdir(os.path.join(workdir, self.arch)):
-            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
-        os.rmdir(os.path.join(workdir, self.arch))
+        self.workspace_cleanup(workdir)
+        # shutil.rmtree(temp_dir)
+        # shutil.rmtree(temp_workdir)
 
 import gzip
 class GZIP_CB(CALLBACK):
@@ -311,14 +344,51 @@ class GZIP_CB(CALLBACK):
 
         Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
 
-        d = [sub for sub in os.listdir(workdir) if sub != LOGGING]
-        if not d:
-            return
+        self.workspace_cleanup(workdir)
+        # shutil.rmtree(temp_dir)
 
-        self.arch = max(d, key=d.count)
-        for f in os.listdir(os.path.join(workdir, self.arch)):
-            safe_filemove(os.path.join(workdir, self.arch, f), os.path.join(workdir, f))
-        os.rmdir(os.path.join(workdir, self.arch))
+import bz2
+class BZIP2_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        unpacked = bz2.decompress(binwalk.core.compat.str2bytes(data))
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(unpacked)
+
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+
+        self.workspace_cleanup(workdir)
+        # shutil.rmtree(temp_dir)
+
+import io
+import tarfile
+import tempfile
+class TAR_CB(CALLBACK):
+    def update(self, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        tar = tarfile.TarFile(fileobj=io.BytesIO(binwalk.core.compat.str2bytes(data)))
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        for m in tar.getmembers():
+            if m.isfile() and interesting_path(m.name):
+                buf = tar.extractfile(m)
+                with open(os.path.join(temp_dir, path2name(m.name)), 'wb') as fd:
+                    fd.write(buf.read())
+
+        for f in os.listdir(temp_dir):
+            Extractor(os.path.join(temp_dir, f), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+
+        self.workspace_cleanup(workdir)
+        # shutil.rmtree(temp_dir)
+
 
 class VXWORKS_CB(CALLBACK):
     def update(self, off, size, workdir):
@@ -362,6 +432,8 @@ class Extractor(object):
         self.rar_cb = RAR_CB(self.binfile)
         self.gzip_cb = GZIP_CB(self.binfile)
         self.elf_cb = ELF_CB(self.binfile)
+        self.bzip2_cb = BZIP2_CB(self.binfile)
+        self.tar_cb = TAR_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -385,6 +457,10 @@ class Extractor(object):
             return self.gzip_cb
         elif desc.lower().startswith("elf, "):
             return self.elf_cb
+        elif desc.lower().startswith("bzip2 compressed data"):
+            return self.bzip2_cb
+        elif desc.lower().startswith("posix tar archive"):
+            return self.tar_cb
 
         # failsafe
         return CALLBACK(self.binfile)
@@ -408,10 +484,12 @@ class Extractor(object):
 
         if not assumed_archs:
             # special case, if we seen a lot html header/footer, that should be the firmware
-            if self.html_cb.counter > len(sigmod.results)/2:
+            if self.html_cb.counter >= len(sigmod.results)/2:
                 with open(self.binfile, 'rb') as fd:
-                    assumed_archs.append(
-                            CALLBACK(self.binfile).checkasm(fd.read()))
+                    check_arch = CALLBACK(self.binfile).checkasm(fd.read())
+                if check_arch:
+                    assumed_archs.append(check_arch)
+                    shutil.copy(self.binfile, temp_dir)
             if not assumed_archs:
                 return False
 
@@ -439,5 +517,5 @@ if __name__ == "__main__":
             failed.append(fn)
 
     with open("failed", 'a') as fd:
-        fd.write('\n'.join(failed))
+        fd.write('\n'.join(failed) + '\n')
 
