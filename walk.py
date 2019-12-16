@@ -601,6 +601,9 @@ class LINUXKERN_CB(CALLBACK):
 
         self.arch = self.checkasm(data)
 
+        if self.arch:
+            self.save(os.path.join(workdir, self.arch, "kernel"), binwalk.core.compat.str2bytes(data))
+
 
 import re
 import tempfile
