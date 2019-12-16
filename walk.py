@@ -593,6 +593,9 @@ class ELF_CB(CALLBACK):
 
         self.arch = self.checkasm(data)
 
+        if self.arch:
+            os.makedirs(os.path.join(workdir, self.arch), exist_ok=True)
+
 class LINUXKERN_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
