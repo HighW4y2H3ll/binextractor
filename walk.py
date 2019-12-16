@@ -365,7 +365,8 @@ class ZIP_CB(CALLBACK):
         try:
             with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
                 for zi in z.infolist():
-                    print(zi.filename)
+                    # NOTE: not seeing rootfs in zip yet
+                    #if zi.is_dir() and os.path.basename(zi.filename[:-1]) in rootfs_toplevel:
                     if not zi.is_dir() and interesting_path(zi.filename):
                         newfn = path2name(zi.filename)
                         with open(os.path.join(temp_dir, newfn), 'wb') as fd:
