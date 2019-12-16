@@ -139,7 +139,7 @@ class CALLBACK(object):
     def save(self, dest, data):
         destdir = os.path.dirname(dest)
         if not os.path.exists(destdir):
-            os.mkdirs(destdir)
+            os.makedirs(destdir, exist_ok=True)
         while os.path.exists(dest):
             dest += "_"
         with open(dest, 'wb') as fd:
@@ -174,7 +174,7 @@ class CALLBACK(object):
         # copy results
         if arch:
             dest = os.path.join(destdir, arch)
-            os.mkdir(dest)
+            os.makedirs(dest, exist_ok=True)
             safe_filemove(unpacked_dir, os.path.join(dest, os.path.basename(unpacked_dir)))
             safe_filecopy(self.binfile, os.path.join(dest, os.path.basename(self.binfile)))
 
@@ -292,7 +292,7 @@ class LZMA_CB(CALLBACK):
         if not self.arch:
             return
 
-        os.mkdir(os.path.join(workdir, self.arch))
+        os.makedirs(os.path.join(workdir, self.arch), exist_ok=True)
         with open(os.path.join(workdir, self.arch, f"lzma_{self.index}"), 'wb') as fd:
             fd.write(unpacked)
 
@@ -367,6 +367,7 @@ class ZIP_CB(CALLBACK):
         try:
             with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
                 for zi in z.infolist():
+                    print(zi.filename)
                     if not zi.is_dir() and interesting_path(zi.filename):
                         newfn = path2name(zi.filename)
                         with open(os.path.join(temp_dir, newfn), 'wb') as fd:
@@ -428,6 +429,7 @@ class RAR_CB(CALLBACK):
                 ["./unrar/unrar", "x", "-y", "-p-", os.path.join(temp_dir, "tmp"), temp_workdir],
                 stdout=subprocess.DEVNULL)
 
+        # NOTE: didn't see rar packed rootfs yet
         path_flatten(temp_workdir)
 
         for f in list_files(temp_workdir):
