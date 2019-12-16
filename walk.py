@@ -361,12 +361,14 @@ class ZIP_CB(CALLBACK):
         data = fd.read()
         fd.close()
 
+        found_fs = False
         temp_dir = tempfile.mkdtemp('_tmpx')
         try:
             with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
                 for zi in z.infolist():
-                    # NOTE: not seeing rootfs in zip yet
-                    #if zi.is_dir() and os.path.basename(zi.filename[:-1]) in rootfs_toplevel:
+                    if zi.is_dir() and os.path.basename(zi.filename[:-1]) in rootfs_toplevel:
+                        found_fs = True
+                        break
                     if not zi.is_dir() and interesting_path(zi.filename):
                         newfn = path2name(zi.filename)
                         with open(os.path.join(temp_dir, newfn), 'wb') as fd:
@@ -375,8 +377,17 @@ class ZIP_CB(CALLBACK):
             #print("Bad Zip File")
             pass
 
-        for f in list_files(temp_dir):
-            Extractor(f, toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        if found_fs:
+            def unpack_cb(unpackdir):
+                try:
+                    with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
+                        z.extractall(unpackdir)
+                except zipfile.BadZipFile as e:
+                    pass
+            self.rootfs_handler(temp_dir, workdir, unpack_cb)
+        else:
+            for f in list_files(temp_dir):
+                Extractor(f, toplevel=temp_dir).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
