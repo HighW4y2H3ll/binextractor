@@ -292,9 +292,7 @@ class LZMA_CB(CALLBACK):
         if not self.arch:
             return
 
-        os.makedirs(os.path.join(workdir, self.arch), exist_ok=True)
-        with open(os.path.join(workdir, self.arch, f"lzma_{self.index}"), 'wb') as fd:
-            fd.write(unpacked)
+        self.save(os.path.join(workdir, self.arch, f"lzma_{self.index}"), unpacked)
 
         self.index += 1
 
