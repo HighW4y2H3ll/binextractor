@@ -7,7 +7,7 @@ CUR_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
 WORKSPACE = os.path.join(CUR_DIR, "workspace")
 FAIL_LOG = os.path.join(WORKSPACE, f"failed-{os.getpid()}")
 
-DEBUG = True
+DEBUG = False
 
 #import binwalk
 BINWALK_DIR = os.path.join(CUR_DIR, 'binwalk/src/binwalk')
@@ -257,44 +257,60 @@ class CALLBACK(object):
 
 
 import lzma
+import tempfile
 class LZMA_CB(CALLBACK):
     def init(self):
         self.index = 0
 
-    def _try_deflate(self, data):
+    def _try_deflate(self, data, fout):
+        ldat = 0
         decomp = lzma.LZMADecompressor()
-        unpacked = b""
         stride = 0x10
         for i in range(0, len(data), stride):
             try:
-                buf = decomp.decompress(binwalk.core.compat.str2bytes(data[i:i+stride]))
+                unpacked = decomp.decompress(binwalk.core.compat.str2bytes(data[i:i+stride]))
             except IOError as e:
                 print("truncated")
                 return None, False
             except lzma.LZMAError as e:
                 #print(e)
-                return unpacked, False
+                return ldat, False
             except EOFError as e:
-                return unpacked, True
-            unpacked += buf
-        return unpacked, True
+                return ldat, True
+            fout.write(unpacked)
+            ldat += len(unpacked)
+        return ldat, True
 
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
         data = fd.read()
 
-        unpacked, valid = self._try_deflate(data)
-        if not valid and len(unpacked) == 0:
-            unpacked, valid = self._try_deflate(data[:5]+'\xff'*8+data[5:])
+        temp_dir = tempfile.mkdtemp("_tmpx")
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as tmpfd:
+            ldat, valid = self._try_deflate(data, tmpfd)
+            if not valid and ldat == 0:
+                tmpfd.seek(0)
+                tmpfd.truncate(0)
+                ldat, valid = self._try_deflate(data[:5]+'\xff'*8+data[5:], tmpfd)
 
-        self.arch = self.checkasm(unpacked)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        self.workspace_cleanup(workdir)
+
+        if not self.arch:
+            with open(os.path.join(temp_dir, "tmp"), 'rb') as fd:
+                unpacked = fd.read()
+                self.arch = self.checkasm(unpacked)
+                if self.arch:
+                    self.save(os.path.join(workdir, self.arch, f"lzma_{self.index}"), unpacked)
+
         if not self.arch:
             return
 
-        self.save(os.path.join(workdir, self.arch, f"lzma_{self.index}"), unpacked)
 
         self.index += 1
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
 import shutil
 import tempfile
@@ -512,6 +528,8 @@ class TAR_CB(CALLBACK):
             tar = tarfile.TarFile(fileobj=io.BytesIO(binwalk.core.compat.str2bytes(data)))
         except tarfile.InvalidHeaderError as e:
             #print("Tar Error: invalid Headder")
+            return
+        except tarfile.ReadError as e:
             return
 
         found_fs = False
