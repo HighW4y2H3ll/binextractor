@@ -7,7 +7,7 @@ CUR_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
 WORKSPACE = os.path.join(CUR_DIR, "workspace")
 FAIL_LOG = os.path.join(WORKSPACE, f"failed-{os.getpid()}")
 
-DEBUG = False
+DEBUG = True
 
 #import binwalk
 BINWALK_DIR = os.path.join(CUR_DIR, 'binwalk/src/binwalk')
@@ -606,7 +606,7 @@ class ELF_CB(CALLBACK):
         self.arch = self.checkasm(data)
 
         if self.arch:
-            os.makedirs(os.path.join(workdir, self.arch), exist_ok=True)
+            self.save(os.path.join(workdir, self.arch, "elfhead"), binwalk.core.compat.str2bytes(data))
 
 class LINUXKERN_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
