@@ -562,6 +562,40 @@ class TAR_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
+import io
+import subprocess
+class CPIO_CB(CALLBACK):
+    def cpio_end(self, result, caller, workdir):
+        caller.skip = True
+        if not result.description.lower().startswith("ascii cpio archive"):
+            caller.skip = False
+            caller.callnext = None
+
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        data = fd.read()
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        # possible filesystem, try unpack
+        def unpack_cb(unpackdir):
+            with open(os.path.join(temp_dir, "tmp"), 'rb') as fdin:
+                result = subprocess.call(
+                        ["cpio", "-d", "-i", "--no-absolute-filenames"],
+                        cwd=unpackdir,
+                        stdin=fdin,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+        return self.cpio_end
+
 
 class VXWORKS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
@@ -661,6 +695,7 @@ class Extractor(object):
         self.tar_cb = TAR_CB(self.binfile)
         self.linuxkern_cb = LINUXKERN_CB(self.binfile)
         self.xeroxdlm_cb = XEROXDLM_CB(self.binfile)
+        self.cpio_cb = CPIO_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -699,6 +734,8 @@ class Extractor(object):
             return self.linuxkern_cb
         elif desc.lower().startswith("xerox dlm firmware start of header"):
             return self.xeroxdlm_cb
+        elif desc.lower().startswith("ascii cpio archive"):
+            return self.cpio_cb
 
         # failsafe
         return CALLBACK(self.binfile)
