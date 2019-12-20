@@ -465,6 +465,68 @@ class ROMFS_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
+import shutil
+import tempfile
+class JFFS2FS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            tempd = tempfile.mkdtemp('_tmpx')
+            result = subprocess.call(
+                    ["sudo", "mount", "-t", "jffs2", tempd, os.path.join(temp_dir, "tmp")],
+                    stdout=subprocess.DEVNULL)
+            os.rmdir(unpackdir)
+            shutil.copytree(tempd, unpackdir, symlinks=True)
+            result = subprocess.call(
+                    ["sudo", "umount", tempd],
+                    stdout=subprocess.DEVNULL)
+            shutil.rmtree(tempd)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
+import shutil
+import tempfile
+class UBIFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            tempd = tempfile.mkdtemp('_tmpx')
+            result = subprocess.call(
+                    ["sudo", "mount", "-t", "ubifs", tempd, os.path.join(temp_dir, "tmp")],
+                    stdout=subprocess.DEVNULL)
+            os.rmdir(unpackdir)
+            shutil.copytree(tempd, unpackdir, symlinks=True)
+            result = subprocess.call(
+                    ["sudo", "umount", tempd],
+                    stdout=subprocess.DEVNULL)
+            shutil.rmtree(tempd)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
 import io
 import zipfile
 import tempfile
@@ -804,6 +866,8 @@ class Extractor(object):
         self.cramfs_cb = CRAMFS_CB(self.binfile)
         self.extfs_cb = EXTFS_CB(self.binfile)
         self.romfs_cb = ROMFS_CB(self.binfile)
+        self.jffs2fs_cb = JFFS2FS_CB(self.binfile)
+        self.ubifs_cb = UBIFS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -850,6 +914,10 @@ class Extractor(object):
             return self.extfs_cb
         elif desc.lower().startswith("romfs filesystem"):
             return self.romfs_cb
+        elif desc.lower().startswith("jffs2 filesystem"):
+            return self.jffs2fs_cb
+        elif desc.lower().startswith("ubifs filesystem superblock node"):
+            return self.ubifs_cb
 
         # failsafe
         return CALLBACK(self.binfile)
