@@ -576,6 +576,35 @@ class DLROMFS_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
+from pfs import PFS
+class PFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            with PFS(os.path.join(temp_dir, "tmp")) as fs:
+                data = binwalk.core.common.BlockFile(fname, 'rb')
+                data.seek(fs.get_end_of_meta_data())
+                for entry in fs.entries():
+                    outfile_path = os.path.join(unpackdir, entry.fname)
+                    outfile = binwalk.core.common.BlockFile(outfile_path, 'wb')
+                    outfile.write(data.read(entry.fsize))
+                    outfile.close()
+                data.close()
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
 import io
 import zipfile
 import tempfile
@@ -919,6 +948,7 @@ class Extractor(object):
         self.ubifs_cb = UBIFS_CB(self.binfile)
         self.yaffs_cb = YAFFS_CB(self.binfile)
         self.dlromfs_cb = DLROMFS_CB(self.binfile)
+        self.pfs_cb = PFS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -973,6 +1003,8 @@ class Extractor(object):
             return self.yaffs_cb
         elif desc.lower().startswith("d-link romfs filesystem"):
             return self.dlromfs_cb
+        elif desc.lower().startswith("pfs filesystem"):
+            return self.pfs_cb
 
         # failsafe
         return CALLBACK(self.binfile)
