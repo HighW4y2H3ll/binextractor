@@ -868,8 +868,8 @@ class VXWORKS_CB(CALLBACK):
 
         self.arch = self.checkasm(data)
 
-        #with open(os.path.join(workdir, "vxworks"), 'wb') as fd:
-        #    fd.write(binwalk.core.compat.str2bytes(data))
+        if self.arch:
+            self.save(os.path.join(workdir, self.arch, "vxworks"), binwalk.core.compat.str2bytes(data))
 
 import tempfile
 class XEROXDLM_CB(CALLBACK):
