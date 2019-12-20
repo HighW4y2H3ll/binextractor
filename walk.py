@@ -346,19 +346,31 @@ class XZ_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 
+import tempfile
 class SQUASHFS_CB(CALLBACK):
-    def init(self):
-        self.index = 0
-
-    # TODO: parse squashfs - https://github.com/plougher/squashfs-tools
+    # unsquashfs - https://github.com/plougher/squashfs-tools
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
         data = fd.read(size)
 
-        with open(os.path.join(workdir, f"fs_{self.index}.squashfs"), 'wb') as fd:
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
-        self.index += 1
+
+        def unpack_cb(unpackdir):
+            # don't really care if failed
+            result = subprocess.call(
+                    ["unsquashfs", "-n", "-d", unpackdir],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
 import io
 import zipfile
