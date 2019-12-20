@@ -169,6 +169,8 @@ class CALLBACK(object):
                 if magic.scan(binwalk.core.compat.bytes2str(code)):
                     assumed_archs.append(self.checkasm(code))
 
+        if not assumed_archs:
+            return
         arch = max(assumed_archs, key=assumed_archs.count)
 
         # copy results
