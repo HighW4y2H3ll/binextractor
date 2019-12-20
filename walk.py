@@ -52,9 +52,9 @@ file_blacklist = [
         ]
 dir_blacklist = ['toolchain', 'tools']
 extension_blacklist = [
-        '.sh', '.bat', '.c', '.h', '.cpp', '.hpp', '.mak',
+        '.bat', '.c', '.h', '.cpp', '.hpp', '.mak',
         '.make', '.js', '.xml', '.html', '.htm', '.css', '.svn-base',
-        '.s', '.txt', '.in', '.asm', '.am', '.log', '.pl', '.png', '.jpg',
+        '.s', '.txt', '.in', '.asm', '.am', '.log', '.png', '.jpg',
         '.gif', '.bmp', '.conf', '.texi', '.plo', '.tex', '.man', '.8',
         '.sgml', '.diff', '.patch', '.txt', '.pdf', '.class', '.jar',
         ]
