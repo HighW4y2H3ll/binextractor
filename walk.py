@@ -544,6 +544,38 @@ class YAFFS_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
+from dlromfs import RomFS
+class DLROMFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            fs = RomFS(os.path.join(temp_dir, "tmp"))
+            for (uid, info) in fs.entries.items():
+                if hasattr(info, 'name') and hasattr(info, 'parent'):
+                    path = fs.build_path(uid).strip(os.path.sep)
+                    fname = os.path.join(unpackdir, path)
+
+                    if info.type == "directory" and not os.path.exists(fname):
+                        os.makedirs(fname)
+                    else:
+                        fdata = fs.get_data(uid)
+                        with open(fname, 'wb') as fp:
+                            fp.write(fdata)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
 import io
 import zipfile
 import tempfile
@@ -886,6 +918,7 @@ class Extractor(object):
         self.jffs2fs_cb = JFFS2FS_CB(self.binfile)
         self.ubifs_cb = UBIFS_CB(self.binfile)
         self.yaffs_cb = YAFFS_CB(self.binfile)
+        self.dlromfs_cb = DLROMFS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -938,6 +971,8 @@ class Extractor(object):
             return self.ubifs_cb
         elif desc.lower().startswith("yaffs filesystem"):
             return self.yaffs_cb
+        elif desc.lower().startswith("d-link romfs filesystem"):
+            return self.dlromfs_cb
 
         # failsafe
         return CALLBACK(self.binfile)
