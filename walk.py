@@ -387,16 +387,9 @@ class CRAMFS_CB(CALLBACK):
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
-            tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
-                    ["sudo", "mount", "-t", "cramfs", tempd, os.path.join(temp_dir, "tmp")],
+                    ["./util-linux/fsck.cramfs", "-x", unpackdir, os.path.join(temp_dir, "tmp")],
                     stdout=subprocess.DEVNULL)
-            os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True)
-            result = subprocess.call(
-                    ["sudo", "umount", tempd],
-                    stdout=subprocess.DEVNULL)
-            shutil.rmtree(tempd)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
 
         self.workspace_cleanup(workdir)
