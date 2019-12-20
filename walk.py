@@ -372,6 +372,99 @@ class SQUASHFS_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
+import shutil
+import tempfile
+class CRAMFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            tempd = tempfile.mkdtemp('_tmpx')
+            result = subprocess.call(
+                    ["sudo", "mount", "-t", "cramfs", tempd, os.path.join(temp_dir, "tmp")],
+                    stdout=subprocess.DEVNULL)
+            os.rmdir(unpackdir)
+            shutil.copytree(tempd, unpackdir, symlinks=True)
+            result = subprocess.call(
+                    ["sudo", "umount", tempd],
+                    stdout=subprocess.DEVNULL)
+            shutil.rmtree(tempd)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
+import shutil
+import tempfile
+class EXTFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            tempd = tempfile.mkdtemp('_tmpx')
+            result = subprocess.call(
+                    ["sudo", "mount", tempd, os.path.join(temp_dir, "tmp")],
+                    stdout=subprocess.DEVNULL)
+            os.rmdir(unpackdir)
+            shutil.copytree(tempd, unpackdir, symlinks=True)
+            result = subprocess.call(
+                    ["sudo", "umount", tempd],
+                    stdout=subprocess.DEVNULL)
+            shutil.rmtree(tempd)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
+import shutil
+import tempfile
+class ROMFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            tempd = tempfile.mkdtemp('_tmpx')
+            result = subprocess.call(
+                    ["sudo", "mount", "-t", "romfs", tempd, os.path.join(temp_dir, "tmp")],
+                    stdout=subprocess.DEVNULL)
+            os.rmdir(unpackdir)
+            shutil.copytree(tempd, unpackdir, symlinks=True)
+            result = subprocess.call(
+                    ["sudo", "umount", tempd],
+                    stdout=subprocess.DEVNULL)
+            shutil.rmtree(tempd)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
 import io
 import zipfile
 import tempfile
@@ -708,6 +801,9 @@ class Extractor(object):
         self.linuxkern_cb = LINUXKERN_CB(self.binfile)
         self.xeroxdlm_cb = XEROXDLM_CB(self.binfile)
         self.cpio_cb = CPIO_CB(self.binfile)
+        self.cramfs_cb = CRAMFS_CB(self.binfile)
+        self.extfs_cb = EXTFS_CB(self.binfile)
+        self.romfs_cb = ROMFS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -748,6 +844,12 @@ class Extractor(object):
             return self.xeroxdlm_cb
         elif desc.lower().startswith("ascii cpio archive"):
             return self.cpio_cb
+        elif desc.lower().startswith("cramfs filesystem"):
+            return self.cramfs_cb
+        elif desc.lower().startswith("linux ext filesystem"):
+            return self.extfs_cb
+        elif desc.lower().startswith("romfs filesystem"):
+            return self.romfs_cb
 
         # failsafe
         return CALLBACK(self.binfile)
