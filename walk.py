@@ -520,6 +520,30 @@ class UBIFS_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
+import shutil
+import tempfile
+class YAFFS_CB(CALLBACK):
+    def update(self, desc, off, size, workdir):
+        fd = binwalk.core.common.BlockFile(self.binfile)
+        fd.seek(off)
+        if size <= 0:   # check invalid size
+            size = -1
+        data = fd.read(size)
+
+        temp_dir = tempfile.mkdtemp('_tmpx')
+        with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
+            fd.write(binwalk.core.compat.str2bytes(data))
+
+        def unpack_cb(unpackdir):
+            result = subprocess.call(
+                    ["./yaffshiv/src/yaffshiv", "--auto", "--brute-force","-d", unpackdir, "-f", os.path.join(temp_dir, "tmp")],
+                    stdout=subprocess.DEVNULL)
+        self.rootfs_handler(temp_dir, workdir, unpack_cb)
+
+        self.workspace_cleanup(workdir)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
+
 import io
 import zipfile
 import tempfile
@@ -861,6 +885,7 @@ class Extractor(object):
         self.romfs_cb = ROMFS_CB(self.binfile)
         self.jffs2fs_cb = JFFS2FS_CB(self.binfile)
         self.ubifs_cb = UBIFS_CB(self.binfile)
+        self.yaffs_cb = YAFFS_CB(self.binfile)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -911,6 +936,8 @@ class Extractor(object):
             return self.jffs2fs_cb
         elif desc.lower().startswith("ubifs filesystem superblock node"):
             return self.ubifs_cb
+        elif desc.lower().startswith("yaffs filesystem"):
+            return self.yaffs_cb
 
         # failsafe
         return CALLBACK(self.binfile)
