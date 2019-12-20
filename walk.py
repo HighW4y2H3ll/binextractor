@@ -314,11 +314,8 @@ class LZMA_CB(CALLBACK):
                 if self.arch:
                     self.save(os.path.join(workdir, self.arch, f"lzma_{self.index}"), unpacked)
 
-        if not self.arch:
-            return
-
-
-        self.index += 1
+        if self.arch:
+            self.index += 1
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
@@ -747,7 +744,7 @@ class GZIP_CB(CALLBACK):
                     unpacked = gz.read(stride)
                 except zlib.error as e:
                     #print("invalid gzip")
-                    return
+                    break
                 except OSError as e:
                     #print("invalid gzip")
                     break
@@ -893,6 +890,8 @@ class XEROXDLM_CB(CALLBACK):
 
         if self.arch:
             caller.assumed_archs.append(self.arch)
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
     def _skip_header(self, result, caller, workdir):
         desc = result.description.lower()
@@ -1058,6 +1057,8 @@ class Extractor(object):
                     os.mkdir(archpath)
                 shutil.copy(self.binfile, archpath)
         if not self.assumed_archs:
+            if not DEBUG:
+                shutil.rmtree(temp_dir)
             return False
 
         arch = max(self.assumed_archs, key=self.assumed_archs.count)
@@ -1068,6 +1069,9 @@ class Extractor(object):
         os.makedirs(dest_path, exist_ok=True)
         for fn in os.listdir(os.path.join(temp_dir, arch)):
             safe_filemove(os.path.join(temp_dir, arch, fn), os.path.join(dest_path, fn))
+
+        if not DEBUG:
+            shutil.rmtree(temp_dir)
 
         return True
 
