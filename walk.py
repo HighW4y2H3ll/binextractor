@@ -21,6 +21,7 @@ _binwalk_spec.loader.exec_module(binwalk)
 LOGGING = "log"
 
 
+import stat
 import shutil
 def safe_filemove(src, dst):
     while os.path.exists(dst):
@@ -105,6 +106,13 @@ rootfs_toplevel = [
         'usr', 'etc', 'opt', 'var',
         'bin', 'sbin',
         ]
+
+def special_dev(path):
+    mode = os.stat(path).st_mode
+    return stat.S_ISBLK(mode) or stat.S_ISCHR(mode)
+
+def ignore_cb(path, names):
+    return set(name for name in names if special_dev(os.path.join(path, name)))
 
 import binwalk.core.magic
 
@@ -416,11 +424,13 @@ class EXTFS_CB(CALLBACK):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", os.path.join(temp_dir, "tmp"), tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True)
+            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             shutil.rmtree(tempd)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
@@ -447,11 +457,13 @@ class ROMFS_CB(CALLBACK):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", "-t", "romfs", os.path.join(temp_dir, "tmp"), tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True)
+            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             shutil.rmtree(tempd)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
@@ -478,11 +490,13 @@ class JFFS2FS_CB(CALLBACK):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", "-t", "jffs2", os.path.join(temp_dir, "tmp"), tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True)
+            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             shutil.rmtree(tempd)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
@@ -509,11 +523,13 @@ class UBIFS_CB(CALLBACK):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", "-t", "ubifs", os.path.join(temp_dir, "tmp"), tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True)
+            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
+                    stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
             shutil.rmtree(tempd)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
