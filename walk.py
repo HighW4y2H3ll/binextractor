@@ -415,7 +415,7 @@ class EXTFS_CB(CALLBACK):
         def unpack_cb(unpackdir):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
-                    ["sudo", "mount", tempd, os.path.join(temp_dir, "tmp")],
+                    ["sudo", "mount", os.path.join(temp_dir, "tmp"), tempd],
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
             shutil.copytree(tempd, unpackdir, symlinks=True)
@@ -446,7 +446,7 @@ class ROMFS_CB(CALLBACK):
         def unpack_cb(unpackdir):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
-                    ["sudo", "mount", "-t", "romfs", tempd, os.path.join(temp_dir, "tmp")],
+                    ["sudo", "mount", "-t", "romfs", os.path.join(temp_dir, "tmp"), tempd],
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
             shutil.copytree(tempd, unpackdir, symlinks=True)
@@ -477,7 +477,7 @@ class JFFS2FS_CB(CALLBACK):
         def unpack_cb(unpackdir):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
-                    ["sudo", "mount", "-t", "jffs2", tempd, os.path.join(temp_dir, "tmp")],
+                    ["sudo", "mount", "-t", "jffs2", os.path.join(temp_dir, "tmp"), tempd],
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
             shutil.copytree(tempd, unpackdir, symlinks=True)
@@ -508,7 +508,7 @@ class UBIFS_CB(CALLBACK):
         def unpack_cb(unpackdir):
             tempd = tempfile.mkdtemp('_tmpx')
             result = subprocess.call(
-                    ["sudo", "mount", "-t", "ubifs", tempd, os.path.join(temp_dir, "tmp")],
+                    ["sudo", "mount", "-t", "ubifs", os.path.join(temp_dir, "tmp"), tempd],
                     stdout=subprocess.DEVNULL)
             os.rmdir(unpackdir)
             shutil.copytree(tempd, unpackdir, symlinks=True)
