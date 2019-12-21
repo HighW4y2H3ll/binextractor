@@ -705,6 +705,8 @@ class ZIP_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
         caller.callnext = None
+        if self.arch:
+            caller.assumed_archs.append(self.arch)
 
 import zlib
 import tempfile
