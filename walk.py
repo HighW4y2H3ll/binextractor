@@ -116,9 +116,14 @@ def special_dev(path):
 def ignore_cb(path, names):
     return set(name for name in names if special_dev(os.path.join(path, name)) or name=='lost+found')
 
+import subprocess
 def treecopy(src, dst):
     if os.path.exists(dst):
         os.rmdir(dst)
+    result = subprocess.call(
+            ["sudo", "chmod", "-R", "+r", src],
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL)
     try:
         shutil.copytree(src, dst, symlinks=True, ignore=ignore_cb)
     except shutil.Error as e:
