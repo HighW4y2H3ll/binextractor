@@ -1066,7 +1066,18 @@ class Extractor(object):
                 shutil.rmtree(temp_dir)
             return False
 
-        arch = max(self.assumed_archs, key=self.assumed_archs.count)
+        toparch = max(self.assumed_archs, key=self.assumed_archs.count)
+        possible_archs = set(arc for arc in self.assumed_archs
+                                if self.assumed_archs.count(arc)==self.assumed_archs.count(toparch))
+        arch = None
+        for arc in possible_archs:
+            if os.path.exists(os.path.join(temp_dir, arc)):
+                arch = arc
+                break
+        if not arch:
+            os.makedirs(os.path.join(temp_dir, toparch))
+            arch = toparch
+
         rel_path = os.path.relpath(os.path.dirname(self.binfile), self.toplevel)
         dest_path = os.path.abspath(os.path.join(workdir, arch, rel_path))
         if extra_file_dir:
