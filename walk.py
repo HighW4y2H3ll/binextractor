@@ -106,6 +106,8 @@ rootfs_toplevel = [
         'usr', 'etc', 'opt', 'var',
         'bin', 'sbin',
         ]
+def check_rootfsdir(pstr):
+    return os.path.basename(os.path.abspath(pstr)) in rootfs_toplevel
 
 def special_dev(path):
     mode = os.stat(path).st_mode
@@ -695,7 +697,7 @@ class ZIP_CB(CALLBACK):
         try:
             with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
                 for zi in z.infolist():
-                    if zi.is_dir() and os.path.basename(zi.filename[:-1]) in rootfs_toplevel:
+                    if zi.is_dir() and check_rootfsdir(zi.filename):
                         found_fs = True
                         break
                     if not zi.is_dir() and interesting_path(zi.filename):
@@ -855,7 +857,7 @@ class TAR_CB(CALLBACK):
         temp_dir = tempfile.mkdtemp('_tmpx')
         try:
             for m in tar:
-                if m.isdir() and m.name in rootfs_toplevel:
+                if m.isdir() and check_rootfsdir(m.name):
                     found_fs = True
                     break
                 if m.isfile() and interesting_path(m.name):
