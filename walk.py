@@ -112,7 +112,7 @@ def special_dev(path):
     return stat.S_ISBLK(mode) or stat.S_ISCHR(mode)
 
 def ignore_cb(path, names):
-    return set(name for name in names if special_dev(os.path.join(path, name)))
+    return set(name for name in names if special_dev(os.path.join(path, name) or name=='lost+found'))
 
 import binwalk.core.magic
 
