@@ -115,8 +115,10 @@ def ignore_cb(path, names):
     return set(name for name in names if special_dev(os.path.join(path, name) or name=='lost+found'))
 
 def treecopy(src, dst):
+    if os.path.exists(dst):
+        os.rmdir(dst)
     try:
-        shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
+        shutil.copytree(src, dst, symlinks=True, ignore=ignore_cb)
     except shutil.Error as e:
         errors = [err for err in e.args[0] if err[2]!='[Errno 5] Input/output error']
         if errors:
@@ -433,8 +435,7 @@ class EXTFS_CB(CALLBACK):
                     ["sudo", "mount", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
-            os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
+            treecopy(tempd, unpackdir)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
                     stderr=subprocess.DEVNULL,
@@ -466,8 +467,7 @@ class ROMFS_CB(CALLBACK):
                     ["sudo", "mount", "-t", "romfs", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
-            os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
+            treecopy(tempd, unpackdir)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
                     stderr=subprocess.DEVNULL,
@@ -499,8 +499,7 @@ class JFFS2FS_CB(CALLBACK):
                     ["sudo", "mount", "-t", "jffs2", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
-            os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
+            treecopy(tempd, unpackdir)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
                     stderr=subprocess.DEVNULL,
@@ -532,8 +531,7 @@ class UBIFS_CB(CALLBACK):
                     ["sudo", "mount", "-t", "ubifs", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
-            os.rmdir(unpackdir)
-            shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
+            treecopy(tempd, unpackdir)
             result = subprocess.call(
                     ["sudo", "umount", tempd],
                     stderr=subprocess.DEVNULL,
