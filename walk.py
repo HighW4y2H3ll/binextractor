@@ -652,6 +652,8 @@ class ZIP_CB(CALLBACK):
         except zipfile.BadZipFile as e:
             #print("Bad Zip File")
             pass
+        except ValueError as e:
+            pass
 
         if found_fs:
             def unpack_cb(unpackdir):
@@ -763,7 +765,10 @@ class BZIP2_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        unpacked = bz2.decompress(binwalk.core.compat.str2bytes(data))
+        try:
+            unpacked = bz2.decompress(binwalk.core.compat.str2bytes(data))
+        except OSError as e:
+            return
 
         temp_dir = tempfile.mkdtemp('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
