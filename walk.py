@@ -128,8 +128,9 @@ def treecopy(src, dst):
 import binwalk.core.magic
 
 class CALLBACK(object):
-    def __init__(self, binfile):
+    def __init__(self, binfile, recursion_level):
         self.binfile = binfile
+        self.level = recursion_level
         self.arch = None
         self.init() # Initialize method from derived class
 
@@ -315,7 +316,7 @@ class LZMA_CB(CALLBACK):
                 tmpfd.truncate(0)
                 ldat, valid = self._try_deflate(data[:5]+'\xff'*8+data[5:], tmpfd)
 
-        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
         self.workspace_cleanup(workdir)
 
         if not self.arch:
@@ -357,7 +358,7 @@ class XZ_CB(CALLBACK):
 
         self.index += 1
 
-        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -697,7 +698,7 @@ class ZIP_CB(CALLBACK):
             self.rootfs_handler(temp_dir, workdir, unpack_cb)
         else:
             for f in list_files(temp_dir):
-                Extractor(f, toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+                Extractor(f, toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -724,7 +725,7 @@ class ZLIB_CB(CALLBACK):
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(unpacked)
 
-        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -752,7 +753,7 @@ class RAR_CB(CALLBACK):
         path_flatten(temp_workdir)
 
         for f in list_files(temp_workdir):
-            Extractor(f, toplevel=temp_workdir).extract(workdir, extra_file_dir=False)
+            Extractor(f, toplevel=temp_workdir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -783,7 +784,7 @@ class GZIP_CB(CALLBACK):
                     break
                 fd.write(unpacked)
 
-        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -805,7 +806,7 @@ class BZIP2_CB(CALLBACK):
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(unpacked)
 
-        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+        Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -852,7 +853,7 @@ class TAR_CB(CALLBACK):
             self.rootfs_handler(temp_dir, workdir, unpack_cb)
         else:
             for f in list_files(temp_dir):
-                Extractor(f, toplevel=temp_dir).extract(workdir, extra_file_dir=False)
+                Extractor(f, toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
 
         self.workspace_cleanup(workdir)
         if not DEBUG:
@@ -917,7 +918,7 @@ class XEROXDLM_CB(CALLBACK):
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
-        extractor = Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir)
+        extractor = Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1)
         cb = extractor.dispatch_callback(result.description)
         cb.update(result.description, 0, -1, workdir)
 
@@ -973,35 +974,36 @@ class LINUXKERN_CB(CALLBACK):
 import re
 import tempfile
 class Extractor(object):
-    def __init__(self, binfile, toplevel="/data/firmware/images"):
+    def __init__(self, binfile, toplevel="/data/firmware/images", recursion_level=0):
         self.toplevel = os.path.abspath(os.path.realpath(toplevel))
         self.binfile = os.path.abspath(os.path.realpath(binfile))
         self.skip = False
         self.callnext = None
+        self.level = recursion_level
 
-        self.lzma_cb = LZMA_CB(self.binfile)
-        self.xz_cb = XZ_CB(self.binfile)
-        self.squashfs_cb = SQUASHFS_CB(self.binfile)
-        self.zip_cb = ZIP_CB(self.binfile)
-        self.zlib_cb = ZLIB_CB(self.binfile)
-        self.vxworks_cb = VXWORKS_CB(self.binfile)
-        self.html_cb = HTML_CB(self.binfile)
-        self.rar_cb = RAR_CB(self.binfile)
-        self.gzip_cb = GZIP_CB(self.binfile)
-        self.elf_cb = ELF_CB(self.binfile)
-        self.bzip2_cb = BZIP2_CB(self.binfile)
-        self.tar_cb = TAR_CB(self.binfile)
-        self.linuxkern_cb = LINUXKERN_CB(self.binfile)
-        self.xeroxdlm_cb = XEROXDLM_CB(self.binfile)
-        self.cpio_cb = CPIO_CB(self.binfile)
-        self.cramfs_cb = CRAMFS_CB(self.binfile)
-        self.extfs_cb = EXTFS_CB(self.binfile)
-        self.romfs_cb = ROMFS_CB(self.binfile)
-        self.jffs2fs_cb = JFFS2FS_CB(self.binfile)
-        self.ubifs_cb = UBIFS_CB(self.binfile)
-        self.yaffs_cb = YAFFS_CB(self.binfile)
-        self.dlromfs_cb = DLROMFS_CB(self.binfile)
-        self.pfs_cb = PFS_CB(self.binfile)
+        self.lzma_cb = LZMA_CB(self.binfile, self.level)
+        self.xz_cb = XZ_CB(self.binfile, self.level)
+        self.squashfs_cb = SQUASHFS_CB(self.binfile, self.level)
+        self.zip_cb = ZIP_CB(self.binfile, self.level)
+        self.zlib_cb = ZLIB_CB(self.binfile, self.level)
+        self.vxworks_cb = VXWORKS_CB(self.binfile, self.level)
+        self.html_cb = HTML_CB(self.binfile, self.level)
+        self.rar_cb = RAR_CB(self.binfile, self.level)
+        self.gzip_cb = GZIP_CB(self.binfile, self.level)
+        self.elf_cb = ELF_CB(self.binfile, self.level)
+        self.bzip2_cb = BZIP2_CB(self.binfile, self.level)
+        self.tar_cb = TAR_CB(self.binfile, self.level)
+        self.linuxkern_cb = LINUXKERN_CB(self.binfile, self.level)
+        self.xeroxdlm_cb = XEROXDLM_CB(self.binfile, self.level)
+        self.cpio_cb = CPIO_CB(self.binfile, self.level)
+        self.cramfs_cb = CRAMFS_CB(self.binfile, self.level)
+        self.extfs_cb = EXTFS_CB(self.binfile, self.level)
+        self.romfs_cb = ROMFS_CB(self.binfile, self.level)
+        self.jffs2fs_cb = JFFS2FS_CB(self.binfile, self.level)
+        self.ubifs_cb = UBIFS_CB(self.binfile, self.level)
+        self.yaffs_cb = YAFFS_CB(self.binfile, self.level)
+        self.dlromfs_cb = DLROMFS_CB(self.binfile, self.level)
+        self.pfs_cb = PFS_CB(self.binfile, self.level)
 
     def dispatch_callback(self, desc):
         if desc.lower().startswith("lzma compressed data"):
@@ -1055,7 +1057,7 @@ class Extractor(object):
             return self.pfs_cb
 
         # failsafe
-        return CALLBACK(self.binfile)
+        return CALLBACK(self.binfile, self.level)
 
 
     def extract(self, workdir, extra_file_dir=True):
@@ -1079,7 +1081,7 @@ class Extractor(object):
         # special case, if we seen a lot html header/footer, that should be the firmware
         if self.html_cb.counter > 0:
             with open(self.binfile, 'rb') as fd:
-                check_arch = CALLBACK(self.binfile).checkasm(fd.read())
+                check_arch = CALLBACK(self.binfile, self.level).checkasm(fd.read())
             if check_arch:
                 for i in range(self.html_cb.counter):
                     self.assumed_archs.append(check_arch)
