@@ -403,6 +403,7 @@ class CRAMFS_CB(CALLBACK):
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
+            os.rmdir(unpackdir)
             result = subprocess.call(
                     ["./util-linux/fsck.cramfs", "-x", unpackdir, os.path.join(temp_dir, "tmp")],
                     stdout=subprocess.DEVNULL)
