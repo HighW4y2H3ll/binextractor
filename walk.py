@@ -114,6 +114,15 @@ def special_dev(path):
 def ignore_cb(path, names):
     return set(name for name in names if special_dev(os.path.join(path, name) or name=='lost+found'))
 
+def treecopy(src, dst):
+    try:
+        shutil.copytree(tempd, unpackdir, symlinks=True, ignore=ignore_cb)
+    except shutil.Error as e:
+        errors = [err for err in e.args[0] if err[2]!='[Errno 5] Input/output error']
+        if errors:
+            raise shutil.Error(errors)
+
+
 import binwalk.core.magic
 
 class CALLBACK(object):
