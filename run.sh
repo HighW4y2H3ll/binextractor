@@ -2,7 +2,7 @@
 
 OLDIFS=$IFS
 IFS=$'\n'
-firmwares=( $(find /data/firmware/images -type f -printf "'%p'\n") )
+firmwares=( $(find /data/firmware/images -type f -printf "'%p'\n"|shuf) )
 IFS=$OLDIFS
 
 len=${#firmwares[@]}
