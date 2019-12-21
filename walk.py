@@ -629,20 +629,44 @@ class PFS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import io
+import struct
 import zipfile
 import tempfile
 class ZIP_CB(CALLBACK):
     def init(self):
-        self.seen_header = False
+        self.head_off = -1
+        self.total = 0
+        self.interesting = 0
+        self.seen_zip = False
 
     def update(self, desc, off, size, workdir):
-        if self.seen_header:
-            return
-        self.seen_header = True
+        self.seen_zip = True
+        match = re.search(", name: (.+?)$",desc.lower())
+        if not match or interesting_path(match.group(1)):
+            self.interesting += 1
+        self.total += 1
 
+        if self.head_off == -1 or off < self.head_off:
+            self.head_off = off
+
+        return self._handle_central_dir
+
+    def _handle_central_dir(self, result, caller, workdir):
+        if not result.description.lower().startswith("end of zip archive"):
+            return
+        if self.interesting == 0:
+            return
+        if not self.seen_zip:
+            return
+        self.seen_zip = False
+
+        cur_offset = result.offset + 20
         fd = binwalk.core.common.BlockFile(self.binfile)
-        fd.seek(off)
-        data = fd.read()
+        fd.seek(cur_offset)
+        comment_size = struct.unpack('<H', binwalk.core.compat.str2bytes(fd.read(2)))[0]
+        cur_offset += 2 + comment_size
+        fd.seek(self.head_off)
+        data = fd.read(cur_offset - self.head_off)
         fd.close()
 
         found_fs = False
@@ -679,8 +703,7 @@ class ZIP_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
-    def reset(self):
-        self.seen_header = False
+        caller.callnext = None
 
 import zlib
 import tempfile
@@ -988,12 +1011,7 @@ class Extractor(object):
         elif desc.lower().startswith("squashfs filesystem"):
             return self.squashfs_cb
         elif desc.lower().startswith("zip archive data"):
-            match = re.search(", name: (.+?)$",desc.lower())
-            if not match or interesting_path(match.group(1)):
-                return self.zip_cb
-        elif desc.lower().startswith("end of zip archive"):
-            self.zip_cb.reset()
-            # fall through
+            return self.zip_cb
         elif desc.lower().startswith("zlib compressed data"):
             return self.zlib_cb
         elif desc.lower().startswith("vxworks "):
@@ -1108,6 +1126,7 @@ if __name__ == "__main__":
             #if not Extractor(fn, os.path.dirname(os.path.abspath(os.path.realpath('.')))).extract("."):
             if not Extractor(fn).extract(WORKSPACE):
                 failed.append(fn)
+                print(f"Unpack Failed: {fn}")
         except:
             traceback.print_exception(*sys.exc_info())
             print(f"Unpack Failed: {fn}")
