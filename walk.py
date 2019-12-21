@@ -127,6 +127,7 @@ def treecopy(src, dst):
 
 import binwalk.core.magic
 
+import gzip
 class CALLBACK(object):
     def __init__(self, binfile, recursion_level):
         self.binfile = binfile
@@ -165,6 +166,13 @@ class CALLBACK(object):
         with open(dest, 'wb') as fd:
             fd.write(data)
 
+    def _checkbFLT(self, results):
+        for r in results:
+            if r.description.lower().startswith("bflt executable") \
+                    and "gzip" in r.description.lower():
+                return True
+        return False
+
     def rootfs_handler(self, workdir, destdir, unpack_cb):
         # cleanup workdir
         #for sub in os.listdir(workdir):
@@ -186,8 +194,20 @@ class CALLBACK(object):
                     continue
                 with open(os.path.join(root, f), 'rb') as fd:
                     code = fd.read()
-                if magic.scan(binwalk.core.compat.bytes2str(code)):
-                    assumed_archs.append(self.checkasm(code))
+                results = magic.scan(binwalk.core.compat.bytes2str(code))
+                if results:
+                    if self._checkbFLT(results):
+                        try:
+                            gz = gzip.GzipFile(fileobj=io.BytesIO(code[0x40:]))
+                            unpacked = b""
+                            for i in range(0, len(code[0x40:]), 1024):
+                                unpacked += gz.read(1024)
+                        except EOFError as e:
+                            pass
+                        code = unpacked
+                    arch = self.checkasm(code)
+                    if arch:
+                        assumed_archs.append(arch)
 
         if not assumed_archs:
             return
