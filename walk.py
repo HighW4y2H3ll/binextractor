@@ -409,7 +409,7 @@ class SQUASHFS_CB(CALLBACK):
         def unpack_cb(unpackdir):
             # don't really care if failed
             result = subprocess.call(
-                    ["unsquashfs", "-n", "-d", unpackdir],
+                    ["unsquashfs", "-f", "-n", "-d", unpackdir],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
@@ -586,6 +586,7 @@ class YAFFS_CB(CALLBACK):
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
+            os.rmdir(unpackdir)
             result = subprocess.call(
                     ["./yaffshiv/src/yaffshiv", "--auto", "--brute-force","-d", unpackdir, "-f", os.path.join(temp_dir, "tmp")],
                     stdout=subprocess.DEVNULL)
