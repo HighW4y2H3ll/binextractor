@@ -13,7 +13,7 @@ for (( i=0; i<$len; i+=$stride ));
 do
     c=$c+1
     sub=${firmwares[@]:$i:$stride}
-    cmd="./walk.py ${sub[@]}"
+    cmd="timeout 2h ./walk.py ${sub[@]}"
     eval $cmd &
     if (( $c==$maxproc )); then
         wait
