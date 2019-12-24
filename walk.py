@@ -787,7 +787,7 @@ class RAR_CB(CALLBACK):
 
         # unrar : https://www.rarlab.com/rar_add.htm
         temp_workdir = make_tempdir('_tmpx')
-        subprocess.check_call(
+        result = subprocess.call(
                 ["./unrar/unrar", "x", "-y", "-p-", os.path.join(temp_dir, "tmp"), temp_workdir],
                 stdout=subprocess.DEVNULL)
 
