@@ -449,7 +449,7 @@ class CRAMFS_CB(CALLBACK):
         def unpack_cb(unpackdir):
             os.rmdir(unpackdir)
             result = subprocess.call(
-                    ["sudo", "./util-linux/fsck.cramfs", "-x", unpackdir, os.path.join(temp_dir, "tmp")],
+                    ["./util-linux/fsck.cramfs", "-x", unpackdir, os.path.join(temp_dir, "tmp")],
                     stdout=subprocess.DEVNULL)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
 
