@@ -643,7 +643,7 @@ class PFS_CB(CALLBACK):
 
         def unpack_cb(unpackdir):
             with PFS(os.path.join(temp_dir, "tmp")) as fs:
-                data = binwalk.core.common.BlockFile(fname, 'rb')
+                data = binwalk.core.common.BlockFile(os.path.join(temp_dir, "tmp"), 'rb')
                 data.seek(fs.get_end_of_meta_data())
                 for entry in fs.entries():
                     outfile_path = os.path.join(unpackdir, entry.fname)
