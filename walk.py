@@ -5,6 +5,7 @@ import importlib
 
 CUR_DIR = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
 WORKSPACE = os.path.join(CUR_DIR, "workspace")
+TEMP = os.path.join(CUR_DIR, "temp")
 FAIL_LOG = os.path.join(WORKSPACE, f"failed-{os.getpid()}")
 
 DEBUG = False
@@ -39,6 +40,10 @@ def safe_mkdir(parent, ndir):
         np += "_"
     os.mkdir(np)
     return np
+
+import tempfile
+def make_tempdir(suffix):
+    return tempfile.mkdtemp(suffix, dir=TEMP)
 
 def path2name(pstr):
     if pstr[0] == '.':
@@ -110,7 +115,10 @@ def check_rootfsdir(pstr):
     return os.path.basename(os.path.abspath(pstr)) in rootfs_toplevel
 
 def special_dev(path):
-    mode = os.stat(path).st_mode
+    try:
+        mode = os.stat(path).st_mode
+    except:
+        return True
     return stat.S_ISBLK(mode) or stat.S_ISCHR(mode)
 
 def ignore_cb(path, names):
@@ -306,7 +314,6 @@ class CALLBACK(object):
 
 
 import lzma
-import tempfile
 class LZMA_CB(CALLBACK):
     def init(self):
         self.index = 0
@@ -335,7 +342,7 @@ class LZMA_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        temp_dir = tempfile.mkdtemp("_tmpx")
+        temp_dir = make_tempdir("_tmpx")
         with open(os.path.join(temp_dir, "tmp"), 'wb') as tmpfd:
             ldat, valid = self._try_deflate(data, tmpfd)
             if not valid and ldat == 0:
@@ -359,7 +366,6 @@ class LZMA_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class XZ_CB(CALLBACK):
     def init(self):
         self.index = 0
@@ -369,7 +375,7 @@ class XZ_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        temp_dir = tempfile.mkdtemp("_tmpx")
+        temp_dir = make_tempdir("_tmpx")
         decomp = lzma.LZMADecompressor()
         stride = 0x10
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -392,7 +398,6 @@ class XZ_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 
-import tempfile
 class SQUASHFS_CB(CALLBACK):
     # unsquashfs - https://github.com/plougher/squashfs-tools
     def update(self, desc, off, size, workdir):
@@ -402,7 +407,7 @@ class SQUASHFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -419,7 +424,6 @@ class SQUASHFS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class CRAMFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -428,7 +432,7 @@ class CRAMFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -444,7 +448,6 @@ class CRAMFS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class EXTFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -453,12 +456,12 @@ class EXTFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
-            tempd = tempfile.mkdtemp('_tmpx')
+            tempd = make_tempdir('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
@@ -476,7 +479,6 @@ class EXTFS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class ROMFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -485,12 +487,12 @@ class ROMFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
-            tempd = tempfile.mkdtemp('_tmpx')
+            tempd = make_tempdir('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", "-t", "romfs", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
@@ -508,7 +510,6 @@ class ROMFS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class JFFS2FS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -517,12 +518,12 @@ class JFFS2FS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
-            tempd = tempfile.mkdtemp('_tmpx')
+            tempd = make_tempdir('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", "-t", "jffs2", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
@@ -540,7 +541,6 @@ class JFFS2FS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class UBIFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -549,12 +549,12 @@ class UBIFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
-            tempd = tempfile.mkdtemp('_tmpx')
+            tempd = make_tempdir('_tmpx')
             result = subprocess.call(
                     ["sudo", "mount", "-t", "ubifs", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
@@ -572,7 +572,6 @@ class UBIFS_CB(CALLBACK):
             shutil.rmtree(temp_dir)
 
 import shutil
-import tempfile
 class YAFFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -581,7 +580,7 @@ class YAFFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -605,7 +604,7 @@ class DLROMFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -637,7 +636,7 @@ class PFS_CB(CALLBACK):
             size = -1
         data = fd.read(size)
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -660,7 +659,6 @@ class PFS_CB(CALLBACK):
 import io
 import struct
 import zipfile
-import tempfile
 class ZIP_CB(CALLBACK):
     def init(self):
         self.head_off = -1
@@ -699,7 +697,7 @@ class ZIP_CB(CALLBACK):
         fd.close()
 
         found_fs = False
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         try:
             with zipfile.ZipFile(io.BytesIO(binwalk.core.compat.str2bytes(data))) as z:
                 for zi in z.infolist():
@@ -737,7 +735,6 @@ class ZIP_CB(CALLBACK):
             caller.assumed_archs.append(self.arch)
 
 import zlib
-import tempfile
 class ZLIB_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -751,7 +748,7 @@ class ZLIB_CB(CALLBACK):
             #print("invalid zlib")
             return
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(unpacked)
 
@@ -761,7 +758,6 @@ class ZLIB_CB(CALLBACK):
         if not DEBUG:
             shutil.rmtree(temp_dir)
 
-import tempfile
 import subprocess
 class RAR_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
@@ -769,12 +765,12 @@ class RAR_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
         # unrar : https://www.rarlab.com/rar_add.htm
-        temp_workdir = tempfile.mkdtemp('_tmpx')
+        temp_workdir = make_tempdir('_tmpx')
         subprocess.check_call(
                 ["./unrar/unrar", "x", "-y", "-p-", os.path.join(temp_dir, "tmp"), temp_workdir],
                 stdout=subprocess.DEVNULL)
@@ -801,7 +797,7 @@ class GZIP_CB(CALLBACK):
         stride = 10 * 1024  # let's trust binwalk plugin for the block size for now
         gz = gzip.GzipFile(fileobj=io.BytesIO(binwalk.core.compat.str2bytes(data)))
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             for i in range(0, len(data), stride):
                 try:
@@ -832,7 +828,7 @@ class BZIP2_CB(CALLBACK):
         except OSError as e:
             return
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(unpacked)
 
@@ -844,7 +840,6 @@ class BZIP2_CB(CALLBACK):
 
 import io
 import tarfile
-import tempfile
 class TAR_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
@@ -860,7 +855,7 @@ class TAR_CB(CALLBACK):
             return
 
         found_fs = False
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         try:
             for m in tar:
                 if m.isdir() and check_rootfsdir(m.name):
@@ -906,7 +901,7 @@ class CPIO_CB(CALLBACK):
         fd.seek(off)
         data = fd.read()
 
-        temp_dir = tempfile.mkdtemp('_tmpx')
+        temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -938,7 +933,6 @@ class VXWORKS_CB(CALLBACK):
         if self.arch:
             self.save(os.path.join(workdir, self.arch, "vxworks"), binwalk.core.compat.str2bytes(data))
 
-import tempfile
 class XEROXDLM_CB(CALLBACK):
     def _unpack_data(self, result, caller, workdir):
         caller.callnext = None
@@ -947,7 +941,7 @@ class XEROXDLM_CB(CALLBACK):
         fd.seek(result.offset)
         data = fd.read()
 
-        temp_dir = tempfile.mkdtemp("_tmpx")
+        temp_dir = make_tempdir("_tmpx")
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
             fd.write(binwalk.core.compat.str2bytes(data))
 
@@ -1005,7 +999,6 @@ class LINUXKERN_CB(CALLBACK):
 
 
 import re
-import tempfile
 class Extractor(object):
     def __init__(self, binfile, toplevel="/data/firmware/images", recursion_level=0):
         self.toplevel = os.path.abspath(os.path.realpath(toplevel))
@@ -1094,7 +1087,7 @@ class Extractor(object):
 
 
     def extract(self, workdir, extra_file_dir=True):
-        temp_dir = tempfile.mkdtemp('_binx')
+        temp_dir = make_tempdir('_binx')
         with binwalk.Modules(*[self.binfile], signature=True, quiet=True, log=os.path.join(temp_dir, LOGGING)) as mod:
             executed_mods = mod.execute()
             assert(len(executed_mods) == 1)
