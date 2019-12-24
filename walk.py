@@ -26,23 +26,26 @@ import stat
 import shutil
 def safe_filemove(src, dst):
     counter = 0
+    orig = dst.split('.')[0]
     while os.path.exists(dst):
-        dst += str(counter)
+        dst = f"{orig}.{str(counter)}"
         counter += 1
     shutil.move(src, dst)
 
 def safe_filecopy(src, dst):
     counter = 0
+    orig = dst.split('.')[0]
     while os.path.exists(dst):
-        dst += str(counter)
+        dst = f"{orig}.{str(counter)}"
         counter += 1
     shutil.copy(src, dst)
 
 def safe_mkdir(parent, ndir):
     counter = 0
+    orig = ndir.split('.')[0]
     np = os.path.join(parent, ndir)
     while os.path.exists(np):
-        np += str(counter)
+        np = os.path.join(parent, f"{orig}.{str(counter)}")
         counter += 1
     os.mkdir(np)
     return np
@@ -183,8 +186,9 @@ class CALLBACK(object):
         if not os.path.exists(destdir):
             os.makedirs(destdir, exist_ok=True)
         counter = 0
+        orig = os.path.basename(dest).split('.')[0]
         while os.path.exists(dest):
-            dest += str(counter)
+            dest = os.path.join(destdir, f"{orig}.{str(counter)}")
             counter += 1
         with open(dest, 'wb') as fd:
             fd.write(data)
