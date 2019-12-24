@@ -877,7 +877,10 @@ class TAR_CB(CALLBACK):
         if found_fs:
             def unpack_cb(unpackdir):
                 try:
-                    tar.extractall(unpackdir)
+                    for ti in tar:
+                        if ti.ischr() or ti.isblk():
+                            continue
+                        tar.extract(ti, unpackdir, set_attrs=not ti.isdir())
                 except tarfile.ReadError as e:
                     pass
             self.rootfs_handler(temp_dir, workdir, unpack_cb)
