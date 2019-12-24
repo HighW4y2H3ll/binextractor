@@ -25,19 +25,25 @@ LOGGING = "log"
 import stat
 import shutil
 def safe_filemove(src, dst):
+    counter = 0
     while os.path.exists(dst):
-        dst += "_"
+        dst += str(counter)
+        counter += 1
     shutil.move(src, dst)
 
 def safe_filecopy(src, dst):
+    counter = 0
     while os.path.exists(dst):
-        dst += "_"
+        dst += str(counter)
+        counter += 1
     shutil.copy(src, dst)
 
 def safe_mkdir(parent, ndir):
+    counter = 0
     np = os.path.join(parent, ndir)
     while os.path.exists(np):
-        np += "_"
+        np += str(counter)
+        counter += 1
     os.mkdir(np)
     return np
 
@@ -176,8 +182,10 @@ class CALLBACK(object):
         destdir = os.path.dirname(dest)
         if not os.path.exists(destdir):
             os.makedirs(destdir, exist_ok=True)
+        counter = 0
         while os.path.exists(dest):
-            dest += "_"
+            dest += str(counter)
+            counter += 1
         with open(dest, 'wb') as fd:
             fd.write(data)
 
