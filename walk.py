@@ -213,6 +213,8 @@ class CALLBACK(object):
             for f in files:
                 if os.path.islink(os.path.join(root, f)):
                     continue
+                if special_dev(os.path.join(root, f)):
+                    continue
                 if not interesting_path(f):
                     continue
                 with open(os.path.join(root, f), 'rb') as fd:
