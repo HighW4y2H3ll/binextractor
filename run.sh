@@ -6,8 +6,8 @@ firmwares=( $(find /data/firmware/images -type f -printf "'%p'\n"|shuf) )
 IFS=$OLDIFS
 
 len=${#firmwares[@]}
-stride=50
-maxproc=20
+stride=100
+maxproc=10
 c=0
 for (( i=0; i<$len; i+=$stride ));
 do
