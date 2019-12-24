@@ -986,6 +986,10 @@ class HTML_CB(CALLBACK):
         self.counter += 1
 
 class ELF_CB(CALLBACK):
+    def init(self):
+        self.seen_elf = 0
+        self.max_elf = 1000
+
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
@@ -993,8 +997,16 @@ class ELF_CB(CALLBACK):
 
         self.arch = self.checkasm(data)
 
+        # if we see raw elfs, we probably met an unidentifiable filesystem
         if self.arch:
-            self.save(os.path.join(workdir, self.arch, "elfhead"), binwalk.core.compat.str2bytes(data))
+            if self.seen_elf == 0:
+                fd.seek(0)
+                data = fd.read()
+                self.save(os.path.join(workdir, self.arch, "fs"), binwalk.core.compat.str2bytes(data))
+            # Temporary use number of files to indicate arch possibility
+            if self.seen_elf < self.max_elf:
+                self.save(os.path.join(workdir, self.arch, "dummy"), b"")
+                self.seen_elf += 1
 
 class LINUXKERN_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
