@@ -645,7 +645,9 @@ class PFS_CB(CALLBACK):
                 data = binwalk.core.common.BlockFile(os.path.join(temp_dir, "tmp"), 'rb')
                 data.seek(fs.get_end_of_meta_data())
                 for entry in fs.entries():
-                    outfile_path = os.path.join(unpackdir, entry.fname)
+                    outfile_path = os.path.abspath(os.path.join(unpackdir, entry.fname))
+                    if not os.path.exists(os.path.dirname(outfile_path)):
+                        os.makedirs(os.path.dirname(outfile_path), exist_ok=True)
                     outfile = binwalk.core.common.BlockFile(outfile_path, 'wb')
                     outfile.write(data.read(entry.fsize))
                     outfile.close()
