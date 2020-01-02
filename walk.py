@@ -1128,9 +1128,13 @@ class Extractor(object):
                     self.callnext(result, self, temp_dir)
                 if not self.skip and result.valid:
                     cb = self.dispatch_callback(result.description)
+                    if DEBUG:
+                        print("  "*self.level+f"{str(cb)}")
                     self.callnext = cb.update(result.description, result.offset, result.size, temp_dir)
                     if cb.arch:
                         self.assumed_archs.append(cb.arch)
+                        if DEBUG:
+                            print("  "*self.level+f"{cb.arch}")
 
         # special case, if we seen a lot html header/footer, that should be the firmware
         if self.html_cb.counter > 0:
