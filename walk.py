@@ -416,9 +416,7 @@ class SQUASHFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -441,9 +439,7 @@ class CRAMFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -465,9 +461,7 @@ class EXTFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -504,9 +498,7 @@ class ROMFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -535,9 +527,7 @@ class JFFS2FS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -566,9 +556,7 @@ class UBIFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -597,9 +585,7 @@ class YAFFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -621,9 +607,7 @@ class DLROMFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
@@ -653,9 +637,7 @@ class PFS_CB(CALLBACK):
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
-        if size <= 0:   # check invalid size
-            size = -1
-        data = fd.read(size)
+        data = fd.read()
 
         temp_dir = make_tempdir('_tmpx')
         with open(os.path.join(temp_dir, "tmp"), 'wb') as fd:
