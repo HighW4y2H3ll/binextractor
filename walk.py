@@ -479,12 +479,20 @@ class EXTFS_CB(CALLBACK):
                     ["sudo", "mount", os.path.join(temp_dir, "tmp"), tempd],
                     stderr=subprocess.DEVNULL,
                     stdout=subprocess.DEVNULL)
-            treecopy(tempd, unpackdir)
-            result = subprocess.call(
-                    ["sudo", "umount", tempd],
-                    stderr=subprocess.DEVNULL,
-                    stdout=subprocess.DEVNULL)
-            shutil.rmtree(tempd)
+            if os.listdir(tempd):
+                treecopy(tempd, unpackdir)
+                result = subprocess.call(
+                        ["sudo", "umount", tempd],
+                        stderr=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL)
+                shutil.rmtree(tempd)
+            else:
+                os.rmdir(tempd)
+                os.rmdir(unpackdir)
+                result = subprocess.call(
+                        ["tsk_recover", "-i", "raw", "-f", "ext", "-a", os.path.join(temp_dir, "tmp"), unpackdir],
+                        stderr=subprocess.DEVNULL,
+                        stdout=subprocess.DEVNULL)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
 
         self.workspace_cleanup(workdir)
