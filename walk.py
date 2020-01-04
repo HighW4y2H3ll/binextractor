@@ -813,6 +813,8 @@ class GZIP_CB(CALLBACK):
                 except OSError as e:
                     #print("invalid gzip")
                     break
+                except EOFError as e:
+                    break
                 fd.write(unpacked)
 
         Extractor(os.path.join(temp_dir, "tmp"), toplevel=temp_dir, recursion_level=self.level+1).extract(workdir, extra_file_dir=False)
