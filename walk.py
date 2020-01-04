@@ -413,7 +413,6 @@ class XZ_CB(CALLBACK):
 
 
 class SQUASHFS_CB(CALLBACK):
-    # unsquashfs - https://github.com/plougher/squashfs-tools
     def update(self, desc, off, size, workdir):
         fd = binwalk.core.common.BlockFile(self.binfile)
         fd.seek(off)
@@ -426,9 +425,9 @@ class SQUASHFS_CB(CALLBACK):
             fd.write(binwalk.core.compat.str2bytes(data))
 
         def unpack_cb(unpackdir):
-            # don't really care if failed
+            os.rmdir(unpackdir)
             result = subprocess.call(
-                    ["unsquashfs", "-f", "-n", "-d", unpackdir],
+                    ["sasquatch", "-d", unpackdir, os.path.join(temp_dir, "tmp")],
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL)
         self.rootfs_handler(temp_dir, workdir, unpack_cb)
