@@ -270,6 +270,8 @@ class CALLBACK(object):
     def checkasm(self, code):
         self.magic.reset()
         stat = {
+                'mips64':   0,
+                'mips64el': 0,
                 'mipsel':   0,
                 'mips'  :   0,
                 'mips16e':  0,
@@ -289,7 +291,11 @@ class CALLBACK(object):
                 }
         for r in self.magic.scan(binwalk.core.compat.bytes2str(code)):
             desc = r.description.lower()
-            if desc.startswith("mipsel "):
+            if desc.startswith("mips 64 "):
+                stat['mips64'] += 1
+            elif desc.startswith("mipsel 64 "):
+                stat['mips64el'] += 1
+            elif desc.startswith("mipsel "):
                 stat['mipsel'] += 1
             elif desc.startswith("mips "):
                 stat['mips'] += 1
