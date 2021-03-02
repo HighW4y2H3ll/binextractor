@@ -1,3 +1,9 @@
 [submodule "binwalk"]
 	path = binwalk
 	url = git@github.com:HighW4y2H3ll/binwalk.git
+[submodule "yaffshiv"]
+	path = yaffshiv
+	url = git@github.com:devttys0/yaffshiv.git
+[submodule "util-linux"]
+	path = util-linux
+	url = git@github.com:karelzak/util-linux.git
